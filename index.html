@@ -104,6 +104,7 @@ body {
   background-image: radial-gradient(circle, #c7d0de 1px, transparent 1px);
   background-size: 24px 24px;
   cursor: grab;
+  touch-action: none;
 }
 #canvas-wrap.panning { cursor: grabbing; }
 
@@ -165,6 +166,7 @@ body {
   opacity: 0; transition: opacity .15s;
 }
 .nc:hover .nc-actions { opacity: 1; }
+@media (hover: none) { .nc-actions { opacity: 1; } }
 
 .nc-btn {
   display: flex; align-items: center; justify-content: center;
@@ -397,6 +399,32 @@ body {
   font-weight: 500; letter-spacing: .02em;
 }
 #pdf-loading.show { display: flex; }
+
+/* ── Mobile responsive ──────────────────────────────── */
+@media (max-width: 640px) {
+  #header { padding: 0 10px; gap: 6px; }
+  .logo-text { display: none; }
+  .btn-label { display: none; }
+  .divider   { display: none; }
+
+  .btn        { min-height: 44px; padding: 10px 13px; }
+  .btn-icon   { min-width: 44px; min-height: 44px; padding: 10px; }
+  .z-btn      { width: 44px; height: 44px; }
+  .swatch     { width: 34px; height: 34px; }
+  .nc-btn     { width: 36px; height: 36px; }
+
+  .overlay { align-items: flex-end; }
+  .modal {
+    width: 100%; max-width: 100%;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .overlay.open .modal { transform: scale(1) translateY(0); }
+
+  .finput, .fselect { font-size: 16px; padding: 10px 12px; }
+}
 </style>
 </head>
 <body>
@@ -415,7 +443,7 @@ body {
       <line x1="19" y1="15" x2="19" y2="12"/>
       <line x1="5" y1="12" x2="19" y2="12"/>
     </svg>
-    OrgChart Maker
+    <span class="logo-text">OrgChart Maker</span>
   </div>
 
   <button class="btn btn-primary" onclick="openAdd(null)">
@@ -425,19 +453,19 @@ body {
 
   <button class="btn btn-secondary" onclick="fitView()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h6M3 3v6M21 3h-6M21 3v6M3 21h6M3 21v-6M21 21h-6M21 21v-6"/></svg>
-    Fit
+    <span class="btn-label">Fit</span>
   </button>
 
   <div class="divider"></div>
 
   <button class="btn btn-secondary" onclick="doImport()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-    Import
+    <span class="btn-label">Import</span>
   </button>
 
   <button class="btn btn-secondary" onclick="doExport()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-    Export
+    <span class="btn-label">Export</span>
   </button>
 
   <div class="sep"></div>
@@ -449,10 +477,10 @@ body {
 
 <!-- ── Canvas ───────────────────────────────────────────────── -->
 <div id="canvas-wrap"
-     onmousedown="panStart(event)"
-     onmousemove="panMove(event)"
-     onmouseup="panEnd()"
-     onmouseleave="panEnd()"
+     onpointerdown="panStart(event)"
+     onpointermove="panMove(event)"
+     onpointerup="panEnd(event)"
+     onpointercancel="panEnd(event)"
      onwheel="doWheel(event)"
      oncontextmenu="return false">
 
@@ -624,6 +652,10 @@ let isDragging    = false;
 let tx = 0, ty = 0, ts = 1;           // canvas transform
 let panning = false;
 let ps = { x:0, y:0 }, po = { x:0, y:0 };
+let panPointerId = null;
+let pinchPointers = new Map();
+let pinchDist0 = null, pinchTs0 = null, pinchTx0 = null, pinchTy0 = null;
+let longPressTimer = null, longPressId = null;
 
 const CW     = 210;   // card width
 const CH     = 110;   // card height estimate for layout
@@ -750,6 +782,17 @@ function renderNodes() {
       </div>`;
 
     card.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); showCtx(e, n.id); });
+
+    // Long-press context menu for touch devices
+    let lpTimer = null;
+    card.addEventListener('pointerdown', e => {
+      if (e.pointerType !== 'touch') return;
+      lpTimer = setTimeout(() => { showCtx(e, n.id); navigator.vibrate && navigator.vibrate(40); }, 500);
+    });
+    ['pointermove', 'pointerup', 'pointercancel'].forEach(ev =>
+      card.addEventListener(ev, () => { clearTimeout(lpTimer); lpTimer = null; })
+    );
+
     layer.appendChild(card);
   }
   resizeSvg();
@@ -797,23 +840,75 @@ function applyT() {
 function panStart(e) {
   const wrap = document.getElementById('canvas-wrap');
   const tgt  = e.target;
-  if (tgt === wrap || tgt.id === 'canvas' || tgt.id === 'svg-layer' || tgt.id === 'nodes-layer') {
+  const onBg = tgt === wrap || tgt.id === 'canvas' || tgt.id === 'svg-layer' || tgt.id === 'nodes-layer';
+
+  pinchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (pinchPointers.size === 2) {
+    // Transition to pinch-zoom: cancel any active pan
+    panning = false;
+    wrap.classList.remove('panning');
+    const pts = [...pinchPointers.values()];
+    const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
+    pinchDist0 = Math.hypot(dx, dy);
+    pinchTs0 = ts; pinchTx0 = tx; pinchTy0 = ty;
+  } else if (onBg) {
     panning = true;
+    panPointerId = e.pointerId;
     ps = { x: e.clientX, y: e.clientY };
     po = { x: tx, y: ty };
     wrap.classList.add('panning');
+    wrap.setPointerCapture(e.pointerId);
     hideCtx();
   }
 }
 function panMove(e) {
-  if (!panning) return;
+  pinchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (pinchPointers.size >= 2 && pinchDist0 !== null) {
+    const pts = [...pinchPointers.values()];
+    const dx = pts[1].x - pts[0].x, dy = pts[1].y - pts[0].y;
+    const dist = Math.hypot(dx, dy);
+    const f  = dist / pinchDist0;
+    const mx = (pts[0].x + pts[1].x) / 2;
+    const my = (pts[0].y + pts[1].y) / 2;
+    const r  = document.getElementById('canvas-wrap').getBoundingClientRect();
+    const cx = mx - r.left, cy = my - r.top;
+    ts = Math.min(3, Math.max(.15, pinchTs0 * f));
+    const actualF = ts / pinchTs0;
+    tx = cx - (cx - pinchTx0) * actualF;
+    ty = cy - (cy - pinchTy0) * actualF;
+    applyT();
+    return;
+  }
+
+  if (!panning || e.pointerId !== panPointerId) return;
   tx = po.x + e.clientX - ps.x;
   ty = po.y + e.clientY - ps.y;
   applyT();
 }
-function panEnd() {
-  panning = false;
-  document.getElementById('canvas-wrap').classList.remove('panning');
+function panEnd(e) {
+  pinchPointers.delete(e.pointerId);
+
+  if (pinchPointers.size < 2) {
+    pinchDist0 = null;
+    if (pinchPointers.size === 1) {
+      // One finger remains after pinch — re-enter pan mode for that finger
+      const [id, pos] = [...pinchPointers.entries()][0];
+      panning = true;
+      panPointerId = id;
+      ps = pos;
+      po = { x: tx, y: ty };
+      document.getElementById('canvas-wrap').classList.add('panning');
+      return;
+    }
+  }
+
+  if (e.pointerId === panPointerId) {
+    panning = false;
+    panPointerId = null;
+    document.getElementById('canvas-wrap').classList.remove('panning');
+  }
 }
 function doWheel(e) {
   e.preventDefault();
