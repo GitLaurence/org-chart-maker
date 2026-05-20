@@ -424,7 +424,81 @@ body {
   .overlay.open .modal { transform: scale(1) translateY(0); }
 
   .finput, .fselect { font-size: 16px; padding: 10px 12px; }
+
+  .nc        { width: 160px; }
+  .nc-name   { font-size: 12px; }
+  .nc-title  { font-size: 10px; }
+  .nc-body   { padding: 9px 10px 7px; gap: 8px; }
+  .nc-avatar { width: 32px; height: 32px; font-size: 12px; }
+
+  /* Preset panel as bottom sheet on mobile */
+  .preset-panel {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    min-width: unset;
+    padding: 8px 8px 28px;
+  }
+  .preset-opt  { padding: 14px 16px; }
+  .preset-name { font-size: 15px; }
+  .preset-desc { font-size: 12px; }
 }
+
+/* ── Preset picker ─────────────────────────────────────────── */
+.preset-wrap  { position: relative; }
+.preset-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  min-width: 250px;
+  padding: 6px;
+  z-index: 200;
+}
+.preset-panel.open { display: block; }
+
+.preset-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: background .1s;
+  user-select: none;
+}
+.preset-opt:hover  { background: var(--surface2); }
+.preset-opt.active { background: rgba(79,70,229,.07); }
+
+.preset-icon { flex-shrink: 0; color: var(--text-muted); }
+.preset-opt.active .preset-icon { color: var(--primary); }
+
+.preset-text  { flex: 1; }
+.preset-name  { font-size: 13px; font-weight: 500; color: var(--text); }
+.preset-opt.active .preset-name { color: var(--primary); font-weight: 600; }
+.preset-desc  { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+.preset-check { flex-shrink: 0; color: var(--primary); opacity: 0; transition: opacity .1s; }
+.preset-opt.active .preset-check { opacity: 1; }
+
+/* ── Lock button active state ──────────────────────────────── */
+.btn-unlocked {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: rgba(79,70,229,.07) !important;
+}
+.btn-unlocked:hover { background: rgba(79,70,229,.13) !important; }
+
+/* ── Draggable card cursor ─────────────────────────────────── */
+.nc.draggable         { cursor: grab; }
+.nc.draggable:active  { cursor: grabbing; }
 </style>
 </head>
 <body>
@@ -449,6 +523,61 @@ body {
   <button class="btn btn-primary" onclick="openAdd(null)">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Add Person
+  </button>
+
+  <div class="preset-wrap" id="preset-wrap">
+    <button class="btn btn-secondary" id="btn-preset" onclick="togglePresetPanel()" title="Switch layout">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+      <span class="btn-label" id="preset-label">Layout</span>
+    </button>
+    <div class="preset-panel" id="preset-panel">
+      <div class="preset-opt" data-preset="top-down" onclick="selectPreset('top-down')">
+        <svg class="preset-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="2" width="6" height="4" rx="1"/><line x1="12" y1="6" x2="12" y2="10"/>
+          <rect x="2" y="10" width="5" height="4" rx="1"/><rect x="9.5" y="10" width="5" height="4" rx="1"/><rect x="17" y="10" width="5" height="4" rx="1"/>
+          <line x1="4.5" y1="10" x2="12" y2="10"/><line x1="12" y1="10" x2="19.5" y2="10"/>
+        </svg>
+        <div class="preset-text">
+          <div class="preset-name">Top &#8594; Down</div>
+          <div class="preset-desc">Classic hierarchical tree</div>
+        </div>
+        <svg class="preset-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="preset-opt" data-preset="left-right" onclick="selectPreset('left-right')">
+        <svg class="preset-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="10" width="5" height="4" rx="1"/><line x1="7" y1="12" x2="12" y2="12"/>
+          <line x1="12" y1="6" x2="12" y2="18"/><line x1="12" y1="6" x2="17" y2="6"/><line x1="12" y1="12" x2="17" y2="12"/><line x1="12" y1="18" x2="17" y2="18"/>
+          <rect x="17" y="4" width="5" height="4" rx="1"/><rect x="17" y="10" width="5" height="4" rx="1"/><rect x="17" y="16" width="5" height="4" rx="1"/>
+        </svg>
+        <div class="preset-text">
+          <div class="preset-name">Left &#8594; Right</div>
+          <div class="preset-desc">Horizontal flow, great for deep charts</div>
+        </div>
+        <svg class="preset-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div class="preset-opt" data-preset="compact" onclick="selectPreset('compact')">
+        <svg class="preset-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="2" width="9" height="5" rx="1"/><rect x="13" y="2" width="9" height="5" rx="1"/>
+          <rect x="2" y="9" width="9" height="5" rx="1"/><rect x="13" y="9" width="9" height="5" rx="1"/>
+          <rect x="2" y="16" width="9" height="5" rx="1"/><rect x="13" y="16" width="9" height="5" rx="1"/>
+        </svg>
+        <div class="preset-text">
+          <div class="preset-name">Compact</div>
+          <div class="preset-desc">Tighter spacing, more visible at once</div>
+        </div>
+        <svg class="preset-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn btn-secondary" id="btn-lock" onclick="toggleLock()" title="Cards locked — click to allow dragging">
+    <svg id="lock-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    </svg>
+    <span class="btn-label" id="lock-label">Lock</span>
   </button>
 
   <button class="btn btn-secondary" onclick="fitView()">
@@ -657,11 +786,31 @@ let pinchPointers = new Map();
 let pinchDist0 = null, pinchTs0 = null, pinchTx0 = null, pinchTy0 = null;
 let longPressTimer = null, longPressId = null;
 
-const CW     = 210;   // card width
-const CH     = 110;   // card height estimate for layout
-const HGAP   = 50;
-const VGAP   = 70;
-const PAD    = 60;
+let currentPreset    = 'top-down';  // 'top-down' | 'left-right' | 'compact'
+let manualPositions  = {};           // { [nodeId]: { x, y } }
+let locked           = true;
+let dragState        = null;         // { id, startPx, startPy, startClientX, startClientY, pointerId }
+
+let CW   = 210;
+let CH   = 110;
+let HGAP = 50;
+let VGAP = 70;
+let PAD  = 60;
+
+const MOBILE_LAYOUT  = { CW: 160, CH: 110, HGAP: 0,  VGAP: 50, PAD: 30 };
+
+const PRESET_LAYOUTS = {
+  'top-down':   { CW: 210, CH: 110, HGAP: 50, VGAP: 70, PAD: 60 },
+  'left-right': { CW: 210, CH: 110, HGAP: 70, VGAP: 20, PAD: 60 },
+  'compact':    { CW: 170, CH: 100, HGAP: 25, VGAP: 40, PAD: 40 },
+};
+
+function isMobile() { return window.innerWidth <= 640; }
+
+function setLayoutMode() {
+  const m = isMobile() ? MOBILE_LAYOUT : (PRESET_LAYOUTS[currentPreset] || PRESET_LAYOUTS['top-down']);
+  CW = m.CW; CH = m.CH; HGAP = m.HGAP; VGAP = m.VGAP; PAD = m.PAD;
+}
 
 const PALETTE = [
   '#4f46e5','#7c3aed','#db2777','#dc2626','#ea580c',
@@ -669,13 +818,75 @@ const PALETTE = [
 ];
 
 /* ─────────────────────────────────────────────────────────────
+   Layout preset picker
+───────────────────────────────────────────────────────────── */
+function selectPreset(preset) {
+  if (currentPreset === preset) { closePresetPanel(); return; }
+  currentPreset = preset;
+  manualPositions = {};
+  setLayoutMode();
+  savePrefs();
+  updatePresetPanel();
+  closePresetPanel();
+  render();
+  fitView();
+}
+
+function togglePresetPanel() {
+  const panel = document.getElementById('preset-panel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) updatePresetPanel();
+}
+
+function closePresetPanel() {
+  const panel = document.getElementById('preset-panel');
+  if (panel) panel.classList.remove('open');
+}
+
+function updatePresetPanel() {
+  document.querySelectorAll('.preset-opt').forEach(el =>
+    el.classList.toggle('active', el.dataset.preset === currentPreset)
+  );
+  const labels = { 'top-down': 'Top→Down', 'left-right': 'Left→Right', 'compact': 'Compact' };
+  const lbl = document.getElementById('preset-label');
+  if (lbl) lbl.textContent = labels[currentPreset] || 'Layout';
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Lock toggle
+───────────────────────────────────────────────────────────── */
+function toggleLock() {
+  locked = !locked;
+  dragState = null;
+  updateLockButton();
+  savePrefs();
+}
+
+function updateLockButton() {
+  const btn = document.getElementById('btn-lock');
+  const lbl = document.getElementById('lock-label');
+  const ico = document.getElementById('lock-icon');
+  if (!btn) return;
+  btn.classList.toggle('btn-unlocked', !locked);
+  btn.title = locked ? 'Cards locked — click to allow dragging' : 'Cards unlocked — drag to reposition';
+  if (lbl) lbl.textContent = locked ? 'Lock' : 'Unlock';
+  if (ico) ico.innerHTML = locked
+    ? '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'
+    : '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>';
+  document.querySelectorAll('.nc').forEach(c => c.classList.toggle('draggable', !locked));
+}
+
+/* ─────────────────────────────────────────────────────────────
    Bootstrap
 ───────────────────────────────────────────────────────────── */
 function init() {
+  setLayoutMode();
   buildSwatches();
   load();
   render();
   if (nodes.length > 0) setTimeout(fitView, 80);
+  updateLockButton();
+  updatePresetPanel();
 
   const pdfCanvas = document.getElementById('pdf-canvas');
   pdfCanvas.addEventListener('pointerdown', pdfPointerDown);
@@ -697,34 +908,62 @@ function layoutTree() {
   }
   if (!roots.length) return {};
 
-  /* Compute subtree widths (post-order) */
-  function subtreeW(n) {
-    if (!n.kids.length) { n.sw = CW; return CW; }
-    let sum = -HGAP;
-    for (const k of n.kids) sum += subtreeW(k) + HGAP;
-    n.sw = Math.max(CW, sum);
-    return n.sw;
+  if (isMobile()) {
+    /* Mobile: vertical single-column stack */
+    const subtreeH = n => {
+      if (!n.kids.length) { n.sh = CH; return CH; }
+      let total = CH + VGAP;
+      for (const k of n.kids) total += subtreeH(k) + VGAP;
+      total -= VGAP; n.sh = total; return total;
+    };
+    const place = (n, x, y) => {
+      n.px = x; n.py = y;
+      let cy = y + CH + VGAP;
+      for (const k of n.kids) { place(k, x, cy); cy += k.sh + VGAP; }
+    };
+    let ry = PAD;
+    for (const r of roots) { subtreeH(r); place(r, PAD, ry); ry += r.sh + VGAP * 2; }
+
+  } else if (currentPreset === 'left-right') {
+    /* Desktop left-right: root at left, children stack vertically to the right */
+    const subtreeH = n => {
+      if (!n.kids.length) { n.sh = CH; return CH; }
+      let t = VGAP * (n.kids.length - 1);
+      for (const k of n.kids) t += subtreeH(k);
+      n.sh = Math.max(CH, t); return n.sh;
+    };
+    const place = (n, x, y) => {
+      n.px = x; n.py = y + n.sh / 2 - CH / 2;
+      let cy = y;
+      for (const k of n.kids) { place(k, x + CW + HGAP, cy); cy += k.sh + VGAP; }
+    };
+    let ry = PAD;
+    for (const r of roots) { subtreeH(r); place(r, PAD, ry); ry += r.sh + VGAP * 2; }
+
+  } else {
+    /* Desktop top-down + compact: Reingold-Tilford horizontal spread */
+    const subtreeW = n => {
+      if (!n.kids.length) { n.sw = CW; return CW; }
+      let s = -HGAP; for (const k of n.kids) s += subtreeW(k) + HGAP;
+      n.sw = Math.max(CW, s); return n.sw;
+    };
+    const place = (n, x, y) => {
+      n.px = x + n.sw / 2 - CW / 2; n.py = y;
+      let cx = x; for (const k of n.kids) { place(k, cx, y + CH + VGAP); cx += k.sw + HGAP; }
+    };
+    let rx = PAD;
+    for (const r of roots) { subtreeW(r); place(r, rx, PAD); rx += r.sw + HGAP * 2; }
   }
 
-  /* Assign x/y (pre-order) */
-  function place(n, x, y) {
-    n.px = x + n.sw / 2 - CW / 2;
-    n.py = y;
-    let cx = x;
-    for (const k of n.kids) { place(k, cx, y + CH + VGAP); cx += k.sw + HGAP; }
-  }
-
-  let rx = PAD;
-  for (const r of roots) {
-    subtreeW(r);
-    place(r, rx, PAD);
-    rx += r.sw + HGAP * 2;
-  }
-
-  /* Collect */
   const pos = {};
-  function collect(n) { pos[n.id] = { x:n.px, y:n.py, kids:n.kids }; n.kids.forEach(collect); }
+  const collect = n => { pos[n.id] = { x: n.px, y: n.py, kids: n.kids }; n.kids.forEach(collect); };
   roots.forEach(collect);
+
+  /* Apply any manually dragged positions */
+  for (const [id, mp] of Object.entries(manualPositions)) {
+    if (pos[id]) { pos[id].x = mp.x; pos[id].y = mp.y; }
+  }
+
   return pos;
 }
 
@@ -781,11 +1020,22 @@ function renderNodes() {
         </button>
       </div>`;
 
+    card.classList.toggle('draggable', !locked);
     card.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); showCtx(e, n.id); });
 
-    // Long-press context menu for touch devices
+    // Long-press context menu for touch + drag-to-reposition when unlocked
     let lpTimer = null;
     card.addEventListener('pointerdown', e => {
+      if (!locked) {
+        // Drag mode: cancel long-press, start dragging
+        e.stopPropagation(); e.preventDefault();
+        const pos = positions[n.id]; if (!pos) return;
+        dragState = { id: n.id, startPx: pos.x, startPy: pos.y,
+                      startClientX: e.clientX, startClientY: e.clientY, pointerId: e.pointerId };
+        card.setPointerCapture(e.pointerId);
+        card.style.zIndex = '10'; card.style.transition = 'none';
+        return;
+      }
       if (e.pointerType !== 'touch') return;
       lpTimer = setTimeout(() => { showCtx(e, n.id); navigator.vibrate && navigator.vibrate(40); }, 500);
     });
@@ -801,6 +1051,7 @@ function renderNodes() {
 function renderEdges() {
   const svg = document.getElementById('svg-layer');
   svg.querySelectorAll('.conn').forEach(e => e.remove());
+  const lr = currentPreset === 'left-right' && !isMobile();
 
   for (const n of nodes) {
     if (!n.parentId) continue;
@@ -808,13 +1059,22 @@ function renderEdges() {
     const cp = positions[n.id];
     if (!pp || !cp) continue;
 
-    const x1 = pp.x + CW / 2, y1 = pp.y + CH;
-    const x2 = cp.x + CW / 2, y2 = cp.y;
-    const my = (y1 + y2) / 2;
+    let d;
+    if (lr) {
+      const x1 = pp.x + CW, y1 = pp.y + CH / 2;
+      const x2 = cp.x,      y2 = cp.y + CH / 2;
+      const mx = (x1 + x2) / 2;
+      d = `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
+    } else {
+      const x1 = pp.x + CW / 2, y1 = pp.y + CH;
+      const x2 = cp.x + CW / 2, y2 = cp.y;
+      const my = (y1 + y2) / 2;
+      d = `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`;
+    }
 
-    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
-    path.setAttribute('d', `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`);
-    path.setAttribute('class','conn');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('class', 'conn');
     svg.appendChild(path);
   }
 }
@@ -830,6 +1090,29 @@ function resizeSvg() {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   Card drag (reposition when unlocked)
+───────────────────────────────────────────────────────────── */
+document.addEventListener('pointermove', e => {
+  if (!dragState || e.pointerId !== dragState.pointerId) return;
+  const dx = (e.clientX - dragState.startClientX) / ts;
+  const dy = (e.clientY - dragState.startClientY) / ts;
+  const nx = dragState.startPx + dx, ny = dragState.startPy + dy;
+  if (positions[dragState.id]) { positions[dragState.id].x = nx; positions[dragState.id].y = ny; }
+  const el = document.getElementById('nc-' + dragState.id);
+  if (el) { el.style.left = nx + 'px'; el.style.top = ny + 'px'; }
+  renderEdges();
+});
+
+document.addEventListener('pointerup', e => {
+  if (!dragState || e.pointerId !== dragState.pointerId) return;
+  const id = dragState.id; dragState = null;
+  const el = document.getElementById('nc-' + id);
+  if (el) { el.style.zIndex = ''; el.style.transition = ''; }
+  if (positions[id]) { manualPositions[id] = { x: positions[id].x, y: positions[id].y }; savePrefs(); }
+  resizeSvg();
+});
+
+/* ─────────────────────────────────────────────────────────────
    Pan & Zoom
 ───────────────────────────────────────────────────────────── */
 function applyT() {
@@ -838,6 +1121,7 @@ function applyT() {
 }
 
 function panStart(e) {
+  if (dragState) return;
   const wrap = document.getElementById('canvas-wrap');
   const tgt  = e.target;
   const onBg = tgt === wrap || tgt.id === 'canvas' || tgt.id === 'svg-layer' || tgt.id === 'nodes-layer';
@@ -1108,6 +1392,8 @@ function clearAll() {
   if (!nodes.length) return;
   showConfirm('Clear all?', 'All nodes will be permanently deleted.', () => {
     nodes = [];
+    manualPositions = {};
+    savePrefs();
     render();
     toast('Chart cleared');
   });
@@ -1116,9 +1402,27 @@ function clearAll() {
 /* ─────────────────────────────────────────────────────────────
    Persist (localStorage)
 ───────────────────────────────────────────────────────────── */
-const KEY = 'orgchart_v1';
+const KEY       = 'orgchart_v1';
+const PREFS_KEY = 'orgchart_prefs_v1';
+const POS_KEY   = 'orgchart_positions_v1';
+
 function save() { try { localStorage.setItem(KEY, JSON.stringify(nodes)); } catch(_) {} }
-function load() { try { const d = localStorage.getItem(KEY); if (d) nodes = JSON.parse(d); } catch(_) { nodes = []; } }
+
+function savePrefs() {
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ preset: currentPreset, locked }));
+    localStorage.setItem(POS_KEY,   JSON.stringify(manualPositions));
+  } catch(_) {}
+}
+
+function load() {
+  try { const d = localStorage.getItem(KEY); if (d) nodes = JSON.parse(d); } catch(_) { nodes = []; }
+  try {
+    const p = localStorage.getItem(PREFS_KEY);
+    if (p) { const o = JSON.parse(p); currentPreset = o.preset || 'top-down'; locked = o.locked !== false; }
+  } catch(_) {}
+  try { const m = localStorage.getItem(POS_KEY); if (m) manualPositions = JSON.parse(m); } catch(_) {}
+}
 
 /* ─────────────────────────────────────────────────────────────
    Export / Import JSON
@@ -1182,6 +1486,7 @@ document.addEventListener('keydown', e => {
 
 document.addEventListener('click', e => {
   if (!e.target.closest('#ctxmenu')) hideCtx();
+  if (!e.target.closest('#preset-wrap')) closePresetPanel();
 });
 
 /* ─────────────────────────────────────────────────────────────
@@ -1373,6 +1678,12 @@ function closePdfModal() {
   if (pdfDoc) { pdfDoc.destroy(); pdfDoc = null; }
   cropRect = null; cropStart = null; isDragging = false;
 }
+
+let _resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(() => { setLayoutMode(); render(); fitView(); }, 150);
+});
 
 /* ── Start ── */
 init();

@@ -6,11 +6,14 @@ A lightweight, single-file organizational chart builder built with vanilla HTML,
 
 - **Add people** with name, job title, department, reporting line, and color
 - **Photo avatars** — upload an image or extract a photo from a PDF for each person
-- **Auto tree layout** — hierarchy repositions automatically on every change
-- **Pan & zoom** — drag to pan, scroll to zoom, or use on-screen controls
-- **Edit & delete** — inline action buttons or right-click context menu
+- **Layout presets** — switch between Top→Down, Left→Right, and Compact layouts from the header
+- **Draggable cards** — unlock cards to freely reposition any node; manual positions are saved
+- **Auto tree layout** — hierarchy repositions automatically when switching presets or adding people
+- **Pan & zoom** — drag to pan, scroll to zoom, or use on-screen controls; pinch-to-zoom on touch
+- **Mobile responsive** — automatically stacks cards vertically on small screens; layout picker opens as a bottom sheet
+- **Edit & delete** — inline action buttons or right-click / long-press context menu
 - **Smart deletion** — direct reports are reassigned to the deleted person's parent
-- **Auto-save** — chart persists in `localStorage` and restores on reload
+- **Auto-save** — chart, layout preference, and card positions persist in `localStorage` and restore on reload
 - **Export / Import** — save and load charts as `.json` files (photos included)
 
 ## Usage
@@ -20,6 +23,29 @@ Open `index.html` in any modern browser. No build step or server needed.
 ```
 double-click index.html
 ```
+
+## Layout Presets
+
+Click the **Layout** button in the header to choose how the hierarchy is displayed:
+
+| Preset | Description |
+|--------|-------------|
+| Top → Down | Classic tree — root at top, children spread horizontally below (default) |
+| Left → Right | Root on the left, children stack vertically to the right — great for deep hierarchies |
+| Compact | Same top-down algorithm with smaller cards and tighter spacing — more nodes visible at once |
+
+Switching presets resets any manually dragged positions and re-fits the chart to the screen. Your chosen preset is remembered across page reloads.
+
+On mobile (≤ 640 px), all presets use a vertical single-column stack regardless of selection.
+
+## Draggable Cards
+
+Click the **Lock** button in the header to toggle card dragging:
+
+- **Locked** (default) — cards are fixed; pan and zoom work normally; no accidental moves
+- **Unlocked** — each card shows a grab cursor; drag any card to reposition it; connector lines redraw live
+
+Manually placed positions are saved per-node and survive page reloads. Switching to a different layout preset clears all manual positions and returns to the algorithm layout.
 
 ## Keyboard Shortcuts
 
@@ -31,13 +57,16 @@ double-click index.html
 | `Enter` | Save the open form |
 | `Esc` | Close modal / menu |
 
-## Mouse Controls
+## Mouse & Touch Controls
 
 | Action | Gesture |
 |--------|---------|
 | Pan | Click and drag on the canvas background |
 | Zoom | Scroll wheel |
+| Fit view | Click the **Fit** button in the header |
 | Context menu | Right-click any card |
+| Context menu (touch) | Long-press any card |
+| Pinch zoom | Two-finger pinch on touch screens |
 
 ## Photo Avatars
 
@@ -78,6 +107,14 @@ Charts are saved as a JSON array. Each person is an object:
 ```
 
 `parentId` is `null` for top-level (root) nodes. Multiple root nodes are supported and displayed side by side. `photo` is optional — omit it or set it to `null` to use the default initials avatar.
+
+## localStorage Keys
+
+| Key | Contents |
+|-----|----------|
+| `orgchart_v1` | Node data (JSON array) |
+| `orgchart_prefs_v1` | Active layout preset and lock state |
+| `orgchart_positions_v1` | Manually dragged card positions |
 
 ## Browser Support
 
