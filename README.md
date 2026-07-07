@@ -13,8 +13,10 @@ A lightweight, single-file organizational chart builder built with vanilla HTML,
 - **Mobile responsive** — automatically stacks cards vertically on small screens; layout picker opens as a bottom sheet
 - **Edit & delete** — inline action buttons or right-click / long-press context menu
 - **Smart deletion** — direct reports are reassigned to the deleted person's parent
+- **Undo** — deleting a person or clearing the chart shows an Undo action for a few seconds
+- **Search** — find people by name, title, or department; matches are highlighted and the chart pans to the first result
 - **Auto-save** — chart, layout preference, and card positions persist in `localStorage` and restore on reload
-- **Export / Import** — save and load charts as `.json` files (photos included)
+- **Export / Import** — save and load charts as `.json` files (photos included); malformed or duplicate entries are skipped on import
 
 ## Usage
 
@@ -55,7 +57,8 @@ Manually placed positions are saved per-node and survive page reloads. Switching
 | `-` | Zoom out |
 | `0` | Fit chart to screen |
 | `Enter` | Save the open form |
-| `Esc` | Close modal / menu |
+| `Esc` | Close modal / menu / search |
+| `/` | Open search |
 
 ## Mouse & Touch Controls
 

@@ -337,7 +337,15 @@ body {
   font-size: 13px; box-shadow: var(--shadow-lg);
   animation: tIn .18s ease, tOut .25s ease 2.4s forwards;
   white-space: nowrap;
+  pointer-events: auto;
 }
+.toast-with-action { display: flex; align-items: center; gap: 12px; }
+.toast-action {
+  background: rgba(255,255,255,.15); border: none; color: #fff;
+  padding: 4px 11px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: inherit; flex-shrink: 0;
+}
+.toast-action:hover { background: rgba(255,255,255,.28); }
 @keyframes tIn  { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
 @keyframes tOut { to   { opacity:0; transform:translateY(-4px); } }
 
@@ -445,6 +453,38 @@ body {
   .preset-opt  { padding: 14px 16px; }
   .preset-name { font-size: 15px; }
   .preset-desc { font-size: 12px; }
+}
+
+/* ── Search panel ──────────────────────────────────────────── */
+.search-wrap  { position: relative; }
+.search-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  min-width: 250px;
+  max-width: calc(100vw - 20px);
+  padding: 10px;
+  z-index: 200;
+}
+.search-panel.open { display: block; }
+.search-hint { font-size: 11px; color: var(--text-muted); margin-top: 7px; min-height: 14px; }
+
+.nc.nc-dim   { opacity: .32; }
+.nc.nc-match { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(79,70,229,.18), var(--shadow-lg); }
+
+@media (max-width: 640px) {
+  .search-panel {
+    position: fixed;
+    top: auto; bottom: 0; left: 0; right: 0;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    min-width: unset;
+    padding: 14px 14px 24px;
+  }
 }
 
 /* ── Preset picker ─────────────────────────────────────────── */
@@ -573,6 +613,17 @@ body {
     </div>
   </div>
 
+  <div class="search-wrap" id="search-wrap">
+    <button class="btn btn-secondary" id="btn-search" onclick="toggleSearchPanel()" title="Search people" aria-label="Search people">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <span class="btn-label">Search</span>
+    </button>
+    <div class="search-panel" id="search-panel">
+      <input class="finput" id="search-input" placeholder="Search name, title, or department…" oninput="onSearchInput()" autocomplete="off" aria-label="Search people">
+      <div class="search-hint" id="search-results"></div>
+    </div>
+  </div>
+
   <button class="btn btn-secondary" id="btn-lock" onclick="toggleLock()" title="Cards locked — click to allow dragging">
     <svg id="lock-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -599,7 +650,7 @@ body {
 
   <div class="sep"></div>
 
-  <button class="btn btn-ghost btn-icon" onclick="clearAll()" title="Clear chart">
+  <button class="btn btn-ghost btn-icon" onclick="clearAll()" title="Clear chart" aria-label="Clear chart">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
   </button>
 </div>
@@ -635,18 +686,18 @@ body {
   </div>
 
   <div id="zoom-ctrl">
-    <button class="z-btn" onclick="zoomBy(1.2)" title="Zoom in">+</button>
-    <div id="zoom-pct">100%</div>
-    <button class="z-btn" onclick="zoomBy(1/1.2)" title="Zoom out">−</button>
+    <button class="z-btn" onclick="zoomBy(1.2)" title="Zoom in" aria-label="Zoom in">+</button>
+    <div id="zoom-pct" aria-live="polite">100%</div>
+    <button class="z-btn" onclick="zoomBy(1/1.2)" title="Zoom out" aria-label="Zoom out">−</button>
   </div>
 </div>
 
 <!-- ── Add / Edit modal ─────────────────────────────────────── -->
-<div class="overlay" id="modal-overlay" onmousedown="overlayClick(event)">
+<div class="overlay" id="modal-overlay" onmousedown="overlayClick(event)" role="dialog" aria-modal="true" aria-labelledby="modal-ttl">
   <div class="modal">
     <div class="modal-head">
       <h2 id="modal-ttl">Add Person</h2>
-      <button class="modal-close" onclick="closeModal()">
+      <button class="modal-close" onclick="closeModal()" aria-label="Close">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
@@ -710,7 +761,7 @@ body {
 </div>
 
 <!-- ── Confirm dialog ───────────────────────────────────────── -->
-<div id="confirm">
+<div id="confirm" role="alertdialog" aria-modal="true" aria-labelledby="cf-title">
   <div class="cfbox">
     <h3 id="cf-title"></h3>
     <p id="cf-msg"></p>
@@ -722,16 +773,16 @@ body {
 </div>
 
 <!-- ── PDF photo picker modal ──────────────────────────────── -->
-<div id="pdf-overlay">
+<div id="pdf-overlay" role="dialog" aria-modal="true" aria-labelledby="pdf-modal-ttl">
   <div class="pdf-modal">
     <div class="modal-head">
-      <h2>Pick Photo from PDF</h2>
+      <h2 id="pdf-modal-ttl">Pick Photo from PDF</h2>
       <div class="pdf-nav">
-        <button class="btn btn-ghost btn-icon" id="pdf-prev" onclick="pdfPrevPage()" title="Previous page">&#8592;</button>
+        <button class="btn btn-ghost btn-icon" id="pdf-prev" onclick="pdfPrevPage()" title="Previous page" aria-label="Previous page">&#8592;</button>
         <span id="pdf-page-info">Page 1 / 1</span>
-        <button class="btn btn-ghost btn-icon" id="pdf-next" onclick="pdfNextPage()" title="Next page">&#8594;</button>
+        <button class="btn btn-ghost btn-icon" id="pdf-next" onclick="pdfNextPage()" title="Next page" aria-label="Next page">&#8594;</button>
       </div>
-      <button class="modal-close" onclick="closePdfModal()">
+      <button class="modal-close" onclick="closePdfModal()" aria-label="Close">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </div>
@@ -850,6 +901,68 @@ function updatePresetPanel() {
   const labels = { 'top-down': 'Top→Down', 'left-right': 'Left→Right', 'compact': 'Compact' };
   const lbl = document.getElementById('preset-label');
   if (lbl) lbl.textContent = labels[currentPreset] || 'Layout';
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Search / filter
+───────────────────────────────────────────────────────────── */
+function toggleSearchPanel() {
+  const panel = document.getElementById('search-panel');
+  panel.classList.toggle('open');
+  if (panel.classList.contains('open')) {
+    setTimeout(() => document.getElementById('search-input').focus(), 30);
+  } else {
+    clearSearch();
+  }
+}
+
+function closeSearchPanel() {
+  const panel = document.getElementById('search-panel');
+  if (panel && panel.classList.contains('open')) { panel.classList.remove('open'); clearSearch(); }
+}
+
+function onSearchInput() {
+  const q = document.getElementById('search-input').value.trim().toLowerCase();
+  const resultsEl = document.getElementById('search-results');
+  if (!q) { clearHighlight(); resultsEl.textContent = ''; return; }
+
+  const matches = nodes.filter(n =>
+    (n.name  || '').toLowerCase().includes(q) ||
+    (n.title || '').toLowerCase().includes(q) ||
+    (n.dept  || '').toLowerCase().includes(q)
+  );
+  const matchIds = new Set(matches.map(m => m.id));
+
+  document.querySelectorAll('.nc').forEach(c => {
+    const id = c.id.slice(3);
+    c.classList.toggle('nc-match', matchIds.has(id));
+    c.classList.toggle('nc-dim', !matchIds.has(id));
+  });
+
+  resultsEl.textContent = matches.length ? `${matches.length} match${matches.length !== 1 ? 'es' : ''}` : 'No matches';
+  if (matches.length) focusOnNode(matches[0].id);
+}
+
+function clearHighlight() {
+  document.querySelectorAll('.nc').forEach(c => c.classList.remove('nc-match', 'nc-dim'));
+}
+
+function clearSearch() {
+  const input = document.getElementById('search-input');
+  if (input) input.value = '';
+  const resultsEl = document.getElementById('search-results');
+  if (resultsEl) resultsEl.textContent = '';
+  clearHighlight();
+}
+
+function focusOnNode(id) {
+  const p = positions[id];
+  if (!p) return;
+  const wrap = document.getElementById('canvas-wrap');
+  const cx = p.x + CW / 2, cy = p.y + CH / 2;
+  tx = wrap.clientWidth  / 2 - cx * ts;
+  ty = wrap.clientHeight / 2 - cy * ts;
+  applyT();
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -978,6 +1091,8 @@ function render() {
   renderEdges();
   document.getElementById('empty').style.display = nodes.length ? 'none' : '';
   save();
+  const searchInput = document.getElementById('search-input');
+  if (searchInput && searchInput.value.trim()) onSearchInput();
 }
 
 function renderNodes() {
@@ -1009,13 +1124,13 @@ function renderNodes() {
         </div>
       </div>
       <div class="nc-actions">
-        <button class="nc-btn add"    title="Add direct report" onclick="openAdd('${n.id}');event.stopPropagation()">
+        <button class="nc-btn add"    title="Add direct report" aria-label="Add direct report to ${esc(n.name)}" onclick="openAdd('${n.id}');event.stopPropagation()">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </button>
-        <button class="nc-btn"        title="Edit"              onclick="openEdit('${n.id}');event.stopPropagation()">
+        <button class="nc-btn"        title="Edit"              aria-label="Edit ${esc(n.name)}" onclick="openEdit('${n.id}');event.stopPropagation()">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg>
         </button>
-        <button class="nc-btn danger" title="Delete"            onclick="askDelete('${n.id}');event.stopPropagation()">
+        <button class="nc-btn danger" title="Delete"            aria-label="Delete ${esc(n.name)}" onclick="askDelete('${n.id}');event.stopPropagation()">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
         </button>
       </div>`;
@@ -1342,14 +1457,24 @@ function askDelete(id) {
     `Delete "${n.name}"?`,
     children
       ? `This person has ${children} direct report${children>1?'s':''}. They will be reassigned to ${n.parentId ? 'their grandparent' : 'top level'}.`
-      : 'This action cannot be undone.',
+      : 'You can undo this right after.',
     () => {
+      const snapshot = { nodes: JSON.parse(JSON.stringify(nodes)), positions: JSON.parse(JSON.stringify(manualPositions)) };
       nodes.filter(x=>x.parentId===id).forEach(x => x.parentId = n.parentId);
       nodes = nodes.filter(x=>x.id!==id);
       render();
-      toast('Person deleted');
+      toast('Person deleted', { duration: 5000, action: { label: 'Undo', cb: () => restoreSnapshot(snapshot) } });
     }
   );
+}
+
+function restoreSnapshot(snapshot) {
+  nodes = snapshot.nodes;
+  manualPositions = snapshot.positions;
+  savePrefs();
+  render();
+  setTimeout(fitView, 80);
+  toast('Restored');
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -1390,12 +1515,13 @@ function closeConfirm(ok) {
 ───────────────────────────────────────────────────────────── */
 function clearAll() {
   if (!nodes.length) return;
-  showConfirm('Clear all?', 'All nodes will be permanently deleted.', () => {
+  showConfirm('Clear all?', 'All nodes will be removed. You can undo this right after.', () => {
+    const snapshot = { nodes: JSON.parse(JSON.stringify(nodes)), positions: JSON.parse(JSON.stringify(manualPositions)) };
     nodes = [];
     manualPositions = {};
     savePrefs();
     render();
-    toast('Chart cleared');
+    toast('Chart cleared', { duration: 5000, action: { label: 'Undo', cb: () => restoreSnapshot(snapshot) } });
   });
 }
 
@@ -1445,10 +1571,35 @@ function onFile(e) {
     try {
       const data = JSON.parse(ev.target.result);
       if (!Array.isArray(data)) throw 0;
-      nodes = data;
+
+      const seenIds = new Set();
+      const sanitized = data
+        .filter(n => n && typeof n.name === 'string' && n.name.trim())
+        .map(n => {
+          const id = (typeof n.id === 'string' && n.id && !seenIds.has(n.id)) ? n.id : uid();
+          seenIds.add(id);
+          return {
+            id,
+            name:     n.name.trim(),
+            title:    typeof n.title === 'string' ? n.title : '',
+            dept:     typeof n.dept  === 'string' ? n.dept  : '',
+            parentId: typeof n.parentId === 'string' ? n.parentId : null,
+            color:    typeof n.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(n.color) ? n.color : PALETTE[0],
+            photo:    typeof n.photo === 'string' ? n.photo : null
+          };
+        });
+      if (!sanitized.length) throw 0;
+
+      const ids = new Set(sanitized.map(n => n.id));
+      sanitized.forEach(n => { if (n.parentId && !ids.has(n.parentId)) n.parentId = null; });
+
+      nodes = sanitized;
+      manualPositions = {};
+      savePrefs();
       render();
       setTimeout(fitView, 80);
-      toast(`Imported ${nodes.length} person${nodes.length!==1?'s':''}`);
+      const dropped = data.length - sanitized.length;
+      toast(`Imported ${nodes.length} person${nodes.length!==1?'s':''}` + (dropped ? ` (${dropped} skipped)` : ''));
     } catch(_) { toast('Invalid JSON file'); }
   };
   reader.readAsText(file);
@@ -1458,13 +1609,31 @@ function onFile(e) {
 /* ─────────────────────────────────────────────────────────────
    Toast
 ───────────────────────────────────────────────────────────── */
-function toast(msg) {
+function toast(msg, opts) {
   const c = document.getElementById('toasts');
   const t = document.createElement('div');
   t.className = 'toast';
-  t.textContent = msg;
+  const duration = (opts && opts.duration) || 2800;
+
+  if (opts && opts.action) {
+    t.classList.add('toast-with-action');
+    const span = document.createElement('span');
+    span.textContent = msg;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-action';
+    btn.textContent = opts.action.label;
+    btn.onclick = () => { t.remove(); opts.action.cb(); };
+    t.append(span, btn);
+  } else {
+    t.textContent = msg;
+  }
+
+  if (duration !== 2800) {
+    t.style.animation = `tIn .18s ease, tOut .25s ease ${(duration - 400) / 1000}s forwards`;
+  }
   c.appendChild(t);
-  setTimeout(() => t.remove(), 2800);
+  setTimeout(() => t.remove(), duration);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -1475,18 +1644,24 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('pdf-overlay').classList.contains('open')) {
       closePdfModal();
     } else {
-      closeModal(); hideCtx(); closeConfirm(false);
+      closeModal(); hideCtx(); closeConfirm(false); closeSearchPanel();
     }
   }
   if (e.key === 'Enter' && document.getElementById('modal-overlay').classList.contains('open')) saveNode();
   if ((e.key === '+' || e.key === '=') && !e.target.matches('input,select,textarea')) zoomBy(1.15);
   if ((e.key === '-')                  && !e.target.matches('input,select,textarea')) zoomBy(1/1.15);
   if (e.key === '0'                    && !e.target.matches('input,select,textarea')) fitView();
+  if (e.key === '/'                    && !e.target.matches('input,select,textarea')) {
+    e.preventDefault();
+    document.getElementById('search-panel').classList.add('open');
+    setTimeout(() => document.getElementById('search-input').focus(), 30);
+  }
 });
 
 document.addEventListener('click', e => {
   if (!e.target.closest('#ctxmenu')) hideCtx();
   if (!e.target.closest('#preset-wrap')) closePresetPanel();
+  if (!e.target.closest('#search-wrap')) closeSearchPanel();
 });
 
 /* ─────────────────────────────────────────────────────────────
