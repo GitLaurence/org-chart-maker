@@ -540,6 +540,23 @@ body {
 /* ── Draggable card cursor ─────────────────────────────────── */
 .nc.draggable         { cursor: grab; }
 .nc.draggable:active  { cursor: grabbing; }
+
+/* ── Print / Save as PDF ────────────────────────────────────── */
+@media print {
+  body { height: auto; overflow: visible; }
+  #header, #zoom-ctrl, #toasts, #empty, .overlay, #ctxmenu, #confirm, #pdf-overlay { display: none !important; }
+  #canvas-wrap {
+    position: static; overflow: visible; height: auto;
+    background: none; cursor: default;
+  }
+  #canvas {
+    position: relative !important;
+    top: 0; left: 0;
+    transform: none !important;
+  }
+  .nc { box-shadow: none; border: 1px solid var(--border); }
+  .nc-actions { display: none; }
+}
 </style>
 </head>
 <body>
@@ -647,6 +664,11 @@ body {
   <button class="btn btn-secondary" onclick="doExport()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
     <span class="btn-label">Export</span>
+  </button>
+
+  <button class="btn btn-secondary" onclick="printChart()" title="Print or save as PDF">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+    <span class="btn-label">Print</span>
   </button>
 
   <div class="sep"></div>
@@ -1115,7 +1137,7 @@ function renderNodes() {
       <div class="nc-body">
         <div class="nc-avatar" style="background:${n.photo ? 'transparent' : n.color}">
           ${n.photo
-            ? `<img src="${n.photo}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block" alt="">`
+            ? `<img src="${esc(n.photo)}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block" alt="">`
             : initials(n.name)}
         </div>
         <div class="nc-info">
@@ -1586,13 +1608,24 @@ function onFile(e) {
             dept:     typeof n.dept  === 'string' ? n.dept  : '',
             parentId: typeof n.parentId === 'string' ? n.parentId : null,
             color:    typeof n.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(n.color) ? n.color : PALETTE[0],
-            photo:    typeof n.photo === 'string' ? n.photo : null
+            photo:    typeof n.photo === 'string' && /^data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/]+=*$/.test(n.photo) ? n.photo : null
           };
         });
       if (!sanitized.length) throw 0;
 
       const ids = new Set(sanitized.map(n => n.id));
       sanitized.forEach(n => { if (n.parentId && !ids.has(n.parentId)) n.parentId = null; });
+
+      /* Break any parentId cycles: keep only nodes reachable from a root
+         within a finite chain, promote the rest to top-level. */
+      const resolved = new Set(sanitized.filter(n => !n.parentId).map(n => n.id));
+      for (let grew = true; grew;) {
+        grew = false;
+        for (const n of sanitized) {
+          if (!resolved.has(n.id) && resolved.has(n.parentId)) { resolved.add(n.id); grew = true; }
+        }
+      }
+      sanitized.forEach(n => { if (!resolved.has(n.id)) n.parentId = null; });
 
       nodes = sanitized;
       manualPositions = {};
@@ -1859,6 +1892,26 @@ let _resizeTimer = null;
 window.addEventListener('resize', () => {
   clearTimeout(_resizeTimer);
   _resizeTimer = setTimeout(() => { setLayoutMode(); render(); fitView(); }, 150);
+});
+
+/* ─────────────────────────────────────────────────────────────
+   Print / Save as PDF
+───────────────────────────────────────────────────────────── */
+function printChart() {
+  if (!nodes.length) { toast('Nothing to print'); return; }
+  window.print();
+}
+
+window.addEventListener('beforeprint', () => {
+  const svg    = document.getElementById('svg-layer');
+  const canvas = document.getElementById('canvas');
+  canvas.style.width  = svg.getAttribute('width')  + 'px';
+  canvas.style.height = svg.getAttribute('height') + 'px';
+});
+window.addEventListener('afterprint', () => {
+  const canvas = document.getElementById('canvas');
+  canvas.style.width  = '';
+  canvas.style.height = '';
 });
 
 /* ── Start ── */

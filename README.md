@@ -17,6 +17,7 @@ A lightweight, single-file organizational chart builder built with vanilla HTML,
 - **Search** — find people by name, title, or department; matches are highlighted and the chart pans to the first result
 - **Auto-save** — chart, layout preference, and card positions persist in `localStorage` and restore on reload
 - **Export / Import** — save and load charts as `.json` files (photos included); malformed or duplicate entries are skipped on import
+- **Print / Save as PDF** — print the full chart (or save it as a PDF) via the browser's native print dialog
 
 ## Usage
 
@@ -70,6 +71,10 @@ Manually placed positions are saved per-node and survive page reloads. Switching
 | Context menu | Right-click any card |
 | Context menu (touch) | Long-press any card |
 | Pinch zoom | Two-finger pinch on touch screens |
+
+## Print / Save as PDF
+
+Click the **Print** button in the header (or press `Ctrl/Cmd+P`) to open the browser's native print dialog. The header, zoom controls, and any open panels are hidden, and the full chart — not just the visible viewport — is laid out for printing. Choose "Save as PDF" in the dialog to export the chart as a PDF.
 
 ## Photo Avatars
 
