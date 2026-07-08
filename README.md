@@ -15,6 +15,8 @@ A lightweight, single-file organizational chart builder built with vanilla HTML,
 - **Smart deletion** — direct reports are reassigned to the deleted person's parent
 - **Undo** — deleting a person or clearing the chart shows an Undo action for a few seconds
 - **Search** — find people by name, title, or department; matches are highlighted and the chart pans to the first result
+- **Dark mode** — toggle light/dark theme from the header; follows your system preference by default and is remembered across reloads
+- **Print / Export as PDF** — print the whole chart (or use your browser's "Save as PDF") from a clean, ink-friendly layout regardless of the active theme
 - **Auto-save** — chart, layout preference, and card positions persist in `localStorage` and restore on reload
 - **Export / Import** — save and load charts as `.json` files (photos included); malformed or duplicate entries are skipped on import
 
@@ -118,6 +120,7 @@ Charts are saved as a JSON array. Each person is an object:
 | `orgchart_v1` | Node data (JSON array) |
 | `orgchart_prefs_v1` | Active layout preset and lock state |
 | `orgchart_positions_v1` | Manually dragged card positions |
+| `orgchart_theme_v1` | Light/dark theme preference |
 
 ## Browser Support
 

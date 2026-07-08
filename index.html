@@ -5,6 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OrgChart Maker</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iIzRmNDZlNSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIyLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+CiAgICA8cmVjdCB4PSIxMyIgeT0iNSIgd2lkdGg9IjYiIGhlaWdodD0iNSIgcng9IjEiLz4KICAgIDxyZWN0IHg9IjQiIHk9IjE5IiB3aWR0aD0iNiIgaGVpZ2h0PSI1IiByeD0iMSIvPgogICAgPHJlY3QgeD0iMTMiIHk9IjE5IiB3aWR0aD0iNiIgaGVpZ2h0PSI1IiByeD0iMSIvPgogICAgPHJlY3QgeD0iMjIiIHk9IjE5IiB3aWR0aD0iNiIgaGVpZ2h0PSI1IiByeD0iMSIvPgogICAgPGxpbmUgeDE9IjE2IiB5MT0iMTAiIHgyPSIxNiIgeTI9IjE1Ii8+CiAgICA8bGluZSB4MT0iNyIgeTE9IjE5IiB4Mj0iNyIgeTI9IjE1Ii8+CiAgICA8bGluZSB4MT0iMTYiIHkxPSIxOSIgeDI9IjE2IiB5Mj0iMTUiLz4KICAgIDxsaW5lIHgxPSIyNSIgeTE9IjE5IiB4Mj0iMjUiIHkyPSIxNSIvPgogICAgPGxpbmUgeDE9IjciIHkxPSIxNSIgeDI9IjI1IiB5Mj0iMTUiLz4KICA8L2c+Cjwvc3ZnPgo=">
+<script>
+/* Set theme before first paint to avoid a flash of the wrong theme */
+(function() {
+  try {
+    var t = localStorage.getItem('orgchart_theme_v1');
+    if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  } catch(_) {}
+})();
+</script>
 <style>
 :root {
   --bg: #f0f2f5;
@@ -19,8 +29,27 @@
   --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
   --shadow-md: 0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.05);
   --shadow-lg: 0 10px 15px rgba(0,0,0,.1), 0 4px 6px rgba(0,0,0,.05);
+  --grid-dot: #c7d0de;
   --r: 8px;
   --r-lg: 12px;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0f1420;
+  --surface: #1a2130;
+  --surface2: #232b3d;
+  --border: #313b52;
+  --text: #e6e9f0;
+  --text-muted: #92a0b8;
+  --primary: #818cf8;
+  --primary-hover: #a5b4fc;
+  --danger: #f87171;
+  --shadow: 0 1px 3px rgba(0,0,0,.4), 0 1px 2px rgba(0,0,0,.3);
+  --shadow-md: 0 4px 6px rgba(0,0,0,.35), 0 2px 4px rgba(0,0,0,.25);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,.4), 0 4px 6px rgba(0,0,0,.3);
+  --grid-dot: #29334a;
+  color-scheme: dark;
 }
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -102,7 +131,7 @@ body {
   overflow: hidden;
   position: relative;
   background-color: var(--bg);
-  background-image: radial-gradient(circle, #c7d0de 1px, transparent 1px);
+  background-image: radial-gradient(circle, var(--grid-dot) 1px, transparent 1px);
   background-size: 24px 24px;
   cursor: grab;
   touch-action: none;
@@ -286,7 +315,8 @@ body {
   transition: transform .1s, border-color .1s;
 }
 .swatch:hover   { transform: scale(1.15); }
-.swatch.active  { border-color: #1a202c; transform: scale(1.15); }
+.swatch:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.swatch.active  { border-color: var(--text); transform: scale(1.15); }
 
 /* ── Context menu ────────────────────────────────── */
 #ctxmenu {
@@ -540,6 +570,23 @@ body {
 /* ── Draggable card cursor ─────────────────────────────────── */
 .nc.draggable         { cursor: grab; }
 .nc.draggable:active  { cursor: grabbing; }
+
+/* ── Print / export as PDF ─────────────────────────────────── */
+@media print {
+  :root, :root[data-theme="dark"] {
+    --bg: #ffffff; --surface: #ffffff; --surface2: #f8f9fb; --border: #d8dee8;
+    --text: #1a202c; --text-muted: #4a5568;
+  }
+  #header, #zoom-ctrl, #toasts, #ctxmenu, .overlay, #pdf-overlay { display: none !important; }
+  body { display: block; height: auto; overflow: visible; background: #fff; }
+  #canvas-wrap {
+    display: block; overflow: visible; position: static; height: auto; min-height: 0;
+    cursor: default; background-image: none; background-color: #fff;
+  }
+  #canvas { position: static; }
+  .nc { box-shadow: none; border: 1px solid #d8dee8; break-inside: avoid; }
+  .nc-actions { display: none; }
+}
 </style>
 </head>
 <body>
@@ -635,6 +682,14 @@ body {
   <button class="btn btn-secondary" onclick="fitView()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h6M3 3v6M21 3h-6M21 3v6M3 21h6M3 21v-6M21 21h-6M21 21v-6"/></svg>
     <span class="btn-label">Fit</span>
+  </button>
+
+  <button class="btn btn-secondary btn-icon" id="btn-theme" onclick="toggleTheme()" title="Toggle dark mode" aria-label="Toggle dark mode">
+    <svg id="theme-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+  </button>
+
+  <button class="btn btn-secondary btn-icon" onclick="doPrint()" title="Print or export as PDF" aria-label="Print or export as PDF">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
   </button>
 
   <div class="divider"></div>
@@ -733,8 +788,8 @@ body {
         </select>
       </div>
       <div class="fg">
-        <label class="flabel">Color</label>
-        <div class="swatches" id="swatches"></div>
+        <label class="flabel" id="color-label">Color</label>
+        <div class="swatches" id="swatches" role="radiogroup" aria-labelledby="color-label"></div>
       </div>
     </div>
     <div class="modal-foot">
@@ -800,7 +855,7 @@ body {
   </div>
 </div>
 
-<div id="toasts"></div>
+<div id="toasts" role="status" aria-live="polite" aria-atomic="false"></div>
 <input type="file" id="file-in" accept=".json"  style="display:none" onchange="onFile(event)">
 <input type="file" id="img-in"  accept="image/*" style="display:none" onchange="onImageFile(event)">
 <input type="file" id="pdf-in"  accept=".pdf"    style="display:none" onchange="onPdfFile(event)">
@@ -1001,12 +1056,74 @@ function init() {
   if (nodes.length > 0) setTimeout(fitView, 80);
   updateLockButton();
   updatePresetPanel();
+  syncThemeButton();
 
   const pdfCanvas = document.getElementById('pdf-canvas');
   pdfCanvas.addEventListener('pointerdown', pdfPointerDown);
   pdfCanvas.addEventListener('pointermove', pdfPointerMove);
   pdfCanvas.addEventListener('pointerup',   pdfPointerUp);
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Theme (light / dark)
+───────────────────────────────────────────────────────────── */
+const THEME_KEY = 'orgchart_theme_v1';
+
+function currentTheme() {
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+
+function toggleTheme() {
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem(THEME_KEY, next); } catch(_) {}
+  syncThemeButton();
+}
+
+function syncThemeButton() {
+  const dark = currentTheme() === 'dark';
+  const icon = document.getElementById('theme-icon');
+  const btn  = document.getElementById('btn-theme');
+  if (icon) icon.innerHTML = dark
+    ? '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>'
+    : '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>';
+  if (btn) {
+    btn.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
+    btn.setAttribute('aria-label', btn.title);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Print / export as PDF
+───────────────────────────────────────────────────────────── */
+let _printSaved = null;
+
+function preparePrint() {
+  const ps = Object.values(positions);
+  if (!ps.length) return;
+  _printSaved = { tx, ty, ts };
+  const minX = Math.min(...ps.map(p => p.x));
+  const minY = Math.min(...ps.map(p => p.y));
+  tx = -minX + PAD;
+  ty = -minY + PAD;
+  ts = 1;
+  applyT();
+}
+
+function restorePrint() {
+  if (!_printSaved) return;
+  ({ tx, ty, ts } = _printSaved);
+  _printSaved = null;
+  applyT();
+}
+
+function doPrint() {
+  if (!nodes.length) { toast('Nothing to print'); return; }
+  window.print();
+}
+
+window.addEventListener('beforeprint', preparePrint);
+window.addEventListener('afterprint', restorePrint);
 
 /* ─────────────────────────────────────────────────────────────
    Layout: Reingold–Tilford inspired simple tree layout
@@ -1431,20 +1548,49 @@ function saveNode() {
 /* ─────────────────────────────────────────────────────────────
    Swatches
 ───────────────────────────────────────────────────────────── */
+const COLOR_NAMES = {
+  '#4f46e5': 'Indigo', '#7c3aed': 'Violet', '#db2777': 'Pink', '#dc2626': 'Red', '#ea580c': 'Orange',
+  '#d97706': 'Amber',  '#16a34a': 'Green',  '#0891b2': 'Cyan', '#0284c7': 'Blue', '#64748b': 'Slate'
+};
+
 function buildSwatches() {
   const box = document.getElementById('swatches');
   box.innerHTML = '';
-  for (const c of PALETTE) {
+  PALETTE.forEach((c, i) => {
     const s = document.createElement('div');
     s.className = 'swatch';
     s.dataset.c = c;
     s.style.background = c;
+    s.setAttribute('role', 'radio');
+    s.setAttribute('aria-checked', 'false');
+    s.setAttribute('aria-label', COLOR_NAMES[c] || `Color ${i + 1}`);
+    s.tabIndex = -1;
     s.onclick = () => pickColor(c);
+    s.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickColor(c); }
+      else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); focusSwatch(i + 1); }
+      else if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   { e.preventDefault(); focusSwatch(i - 1); }
+    });
     box.appendChild(s);
-  }
+  });
 }
+
+function focusSwatch(i) {
+  const swatches = [...document.querySelectorAll('.swatch')];
+  if (!swatches.length) return;
+  const idx = (i + swatches.length) % swatches.length;
+  pickColor(swatches[idx].dataset.c);
+  swatches[idx].focus();
+}
+
 function pickColor(c) {
-  document.querySelectorAll('.swatch').forEach(s => s.classList.toggle('active', s.dataset.c === c));
+  document.querySelectorAll('.swatch').forEach(s => {
+    const active = s.dataset.c === c;
+    s.classList.toggle('active', active);
+    s.setAttribute('aria-checked', String(active));
+    s.tabIndex = active ? 0 : -1;
+  });
+  updatePhotoPreview();
 }
 
 /* ─────────────────────────────────────────────────────────────
