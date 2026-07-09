@@ -17,6 +17,7 @@ A lightweight, single-file organizational chart builder built with vanilla HTML,
 - **Search** — find people by name, title, or department; matches are highlighted and the chart pans to the first result
 - **Auto-save** — chart, layout preference, and card positions persist in `localStorage` and restore on reload
 - **Export / Import** — save and load charts as `.json` files (photos included); malformed or duplicate entries are skipped on import
+- **Export as PNG** — render the current chart (cards, avatars, and connector lines) to a downloadable PNG image at 2× resolution
 
 ## Usage
 

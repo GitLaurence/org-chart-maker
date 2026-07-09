@@ -649,6 +649,11 @@ body {
     <span class="btn-label">Export</span>
   </button>
 
+  <button class="btn btn-secondary" onclick="doExportPng()" title="Export chart as PNG image">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+    <span class="btn-label">PNG</span>
+  </button>
+
   <div class="sep"></div>
 
   <button class="btn btn-ghost btn-icon" onclick="clearAll()" title="Clear chart" aria-label="Clear chart">
@@ -1014,6 +1019,19 @@ function init() {
 function layoutTree() {
   /* Build adjacency */
   const map  = new Map(nodes.map(n => [n.id, { ...n, kids:[] }]));
+
+  /* Guard against cyclic parentId chains (e.g. from a hand-edited import or
+     corrupted localStorage) — without this, walking kids below recurses forever. */
+  for (const n of map.values()) {
+    const seen = new Set();
+    let cur = n;
+    while (cur.parentId && map.has(cur.parentId)) {
+      if (seen.has(cur.id)) { cur.parentId = null; break; }
+      seen.add(cur.id);
+      cur = map.get(cur.parentId);
+    }
+  }
+
   const roots = [];
   for (const n of map.values()) {
     const p = n.parentId && map.get(n.parentId);
@@ -1605,6 +1623,171 @@ function onFile(e) {
   };
   reader.readAsText(file);
   e.target.value = '';
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Export PNG
+───────────────────────────────────────────────────────────── */
+function roundRectPath(ctx, x, y, w, h, r) {
+  if (typeof r === 'number') r = { tl: r, tr: r, br: r, bl: r };
+  ctx.beginPath();
+  ctx.moveTo(x + r.tl, y);
+  ctx.lineTo(x + w - r.tr, y);
+  ctx.arcTo(x + w, y, x + w, y + r.tr, r.tr);
+  ctx.lineTo(x + w, y + h - r.br);
+  ctx.arcTo(x + w, y + h, x + w - r.br, y + h, r.br);
+  ctx.lineTo(x + r.bl, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r.bl, r.bl);
+  ctx.lineTo(x, y + r.tl);
+  ctx.arcTo(x, y, x + r.tl, y, r.tl);
+  ctx.closePath();
+}
+
+function truncateText(ctx, text, maxWidth) {
+  if (ctx.measureText(text).width <= maxWidth) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxWidth) t = t.slice(0, -1);
+  return t + '…';
+}
+
+function loadImageCached(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload  = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+async function drawCardPng(ctx, n, x, y) {
+  const w = CW, h = CH, r = 12;
+  const compact = CW < 200;
+  const avatarSize = compact ? 32 : 38;
+  const padX = compact ? 10 : 13;
+  const padY = compact ? 9  : 11;
+  const gap  = compact ? 8  : 10;
+  const nameFont  = compact ? 12 : 13;
+  const titleFont = compact ? 10 : 11;
+
+  roundRectPath(ctx, x, y, w, h, r);
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+
+  roundRectPath(ctx, x, y, w, 5, { tl: r, tr: r, br: 0, bl: 0 });
+  ctx.fillStyle = n.color;
+  ctx.fill();
+
+  const ax = x + padX, ay = y + padY;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(ax + avatarSize / 2, ay + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+  ctx.closePath();
+  ctx.clip();
+  const img = n.photo ? await loadImageCached(n.photo) : null;
+  if (img) {
+    ctx.drawImage(img, ax, ay, avatarSize, avatarSize);
+  } else {
+    ctx.fillStyle = n.color;
+    ctx.fillRect(ax, ay, avatarSize, avatarSize);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `700 ${compact ? 12 : 14}px system-ui, -apple-system, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(initials(n.name), ax + avatarSize / 2, ay + avatarSize / 2 + 1);
+  }
+  ctx.restore();
+
+  const tx0 = ax + avatarSize + gap;
+  const maxTextW = x + w - padX - tx0;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+
+  let cy = ay + nameFont;
+  ctx.fillStyle = '#1a202c';
+  ctx.font = `600 ${nameFont}px system-ui, -apple-system, sans-serif`;
+  ctx.fillText(truncateText(ctx, n.name, maxTextW), tx0, cy);
+
+  if (n.title) {
+    cy += titleFont + 4;
+    ctx.fillStyle = '#718096';
+    ctx.font = `400 ${titleFont}px system-ui, -apple-system, sans-serif`;
+    ctx.fillText(truncateText(ctx, n.title, maxTextW), tx0, cy);
+  }
+
+  if (n.dept) {
+    cy += 12;
+    ctx.font = '500 10px system-ui, -apple-system, sans-serif';
+    const deptW = Math.min(maxTextW, ctx.measureText(n.dept).width + 14);
+    roundRectPath(ctx, tx0, cy - 9, deptW, 15, 8);
+    ctx.fillStyle = n.color + '1a';
+    ctx.fill();
+    ctx.fillStyle = n.color;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(truncateText(ctx, n.dept, deptW - 14), tx0 + 7, cy - 1.5);
+    ctx.textBaseline = 'alphabetic';
+  }
+}
+
+async function doExportPng() {
+  const ps = Object.values(positions);
+  if (!nodes.length || !ps.length) { toast('Nothing to export'); return; }
+
+  const minX = Math.min(...ps.map(p => p.x));
+  const minY = Math.min(...ps.map(p => p.y));
+  const maxX = Math.max(...ps.map(p => p.x)) + CW;
+  const maxY = Math.max(...ps.map(p => p.y)) + CH;
+
+  const scale = 2;
+  const W = maxX - minX + PAD * 2;
+  const H = maxY - minY + PAD * 2;
+  const ox = PAD - minX, oy = PAD - minY;
+
+  const canvas = document.createElement('canvas');
+  canvas.width  = Math.round(W * scale);
+  canvas.height = Math.round(H * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.fillStyle = '#f0f2f5';
+  ctx.fillRect(0, 0, W, H);
+
+  const lr = currentPreset === 'left-right' && !isMobile();
+  ctx.strokeStyle = '#c1cad6';
+  ctx.lineWidth = 2;
+  for (const n of nodes) {
+    if (!n.parentId) continue;
+    const pp = positions[n.parentId], cp = positions[n.id];
+    if (!pp || !cp) continue;
+    ctx.beginPath();
+    if (lr) {
+      const x1 = pp.x + ox + CW, y1 = pp.y + oy + CH / 2;
+      const x2 = cp.x + ox,      y2 = cp.y + oy + CH / 2;
+      const mx = (x1 + x2) / 2;
+      ctx.moveTo(x1, y1);
+      ctx.bezierCurveTo(mx, y1, mx, y2, x2, y2);
+    } else {
+      const x1 = pp.x + ox + CW / 2, y1 = pp.y + oy + CH;
+      const x2 = cp.x + ox + CW / 2, y2 = cp.y + oy;
+      const my = (y1 + y2) / 2;
+      ctx.moveTo(x1, y1);
+      ctx.bezierCurveTo(x1, my, x2, my, x2, y2);
+    }
+    ctx.stroke();
+  }
+
+  for (const n of nodes) {
+    const p = positions[n.id];
+    if (!p) continue;
+    await drawCardPng(ctx, n, p.x + ox, p.y + oy);
+  }
+
+  canvas.toBlob(blob => {
+    if (!blob) { toast('Could not export PNG'); return; }
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), { href: url, download: 'orgchart.png' });
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Chart exported as PNG');
+  }, 'image/png');
 }
 
 /* ─────────────────────────────────────────────────────────────
