@@ -181,6 +181,13 @@ body {
 .nc-btn.danger:hover { background: #fee2e2; color: var(--danger); }
 .nc-btn-label { font-size: 10px; font-weight: 600; color: var(--text-muted); flex: 1; text-align: right; padding-right: 4px; }
 
+/* ── Compact layout preset (desktop) ─────────────────────── */
+body.compact-mode .nc        { width: 170px; }
+body.compact-mode .nc-name   { font-size: 12px; }
+body.compact-mode .nc-title  { font-size: 10px; }
+body.compact-mode .nc-body   { padding: 9px 10px 7px; gap: 8px; }
+body.compact-mode .nc-avatar { width: 32px; height: 32px; font-size: 12px; }
+
 /* ── Connection lines ────────────────────────────── */
 .conn { fill: none; stroke: #c1cad6; stroke-width: 2; }
 
@@ -488,6 +495,34 @@ body {
   }
 }
 
+/* ── Export menu ───────────────────────────────────────────── */
+.export-wrap  { position: relative; }
+.export-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  min-width: 190px;
+  padding: 4px;
+  z-index: 150;
+}
+.export-panel.open { display: block; }
+
+@media (max-width: 640px) {
+  .export-panel {
+    position: fixed;
+    top: auto; bottom: 0; left: 0; right: 0;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    min-width: unset;
+    padding: 8px 8px 28px;
+  }
+  .export-panel .cxi { padding: 14px 16px; font-size: 14px; }
+}
+
 /* ── Preset picker ─────────────────────────────────────────── */
 .preset-wrap  { position: relative; }
 .preset-panel {
@@ -644,10 +679,22 @@ body {
     <span class="btn-label">Import</span>
   </button>
 
-  <button class="btn btn-secondary" onclick="doExport()">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-    <span class="btn-label">Export</span>
-  </button>
+  <div class="export-wrap" id="export-wrap">
+    <button class="btn btn-secondary" id="btn-export" onclick="toggleExportPanel()" title="Export chart" aria-label="Export chart">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      <span class="btn-label">Export</span>
+    </button>
+    <div class="export-panel" id="export-panel">
+      <div class="cxi" onclick="closeExportPanel();doExport()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Export as JSON
+      </div>
+      <div class="cxi" onclick="closeExportPanel();doExportImage()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="M21 15l-5-5L5 21"/></svg>
+        Export as Image (PNG)
+      </div>
+    </div>
+  </div>
 
   <div class="sep"></div>
 
@@ -862,6 +909,7 @@ function isMobile() { return window.innerWidth <= 640; }
 function setLayoutMode() {
   const m = isMobile() ? MOBILE_LAYOUT : (PRESET_LAYOUTS[currentPreset] || PRESET_LAYOUTS['top-down']);
   CW = m.CW; CH = m.CH; HGAP = m.HGAP; VGAP = m.VGAP; PAD = m.PAD;
+  document.body.classList.toggle('compact-mode', currentPreset === 'compact' && !isMobile());
 }
 
 const PALETTE = [
@@ -902,6 +950,18 @@ function updatePresetPanel() {
   const labels = { 'top-down': 'Top→Down', 'left-right': 'Left→Right', 'compact': 'Compact' };
   const lbl = document.getElementById('preset-label');
   if (lbl) lbl.textContent = labels[currentPreset] || 'Layout';
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Export menu
+───────────────────────────────────────────────────────────── */
+function toggleExportPanel() {
+  document.getElementById('export-panel').classList.toggle('open');
+}
+
+function closeExportPanel() {
+  const panel = document.getElementById('export-panel');
+  if (panel) panel.classList.remove('open');
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -994,9 +1054,9 @@ function updateLockButton() {
    Bootstrap
 ───────────────────────────────────────────────────────────── */
 function init() {
-  setLayoutMode();
   buildSwatches();
   load();
+  setLayoutMode();
   render();
   if (nodes.length > 0) setTimeout(fitView, 80);
   updateLockButton();
@@ -1563,6 +1623,178 @@ function doExport() {
   URL.revokeObjectURL(url);
   toast('Chart exported');
 }
+async function doExportImage() {
+  if (!nodes.length) { toast('Nothing to export'); return; }
+
+  const ps = Object.values(positions);
+  const minX = Math.min(...ps.map(p => p.x)), minY = Math.min(...ps.map(p => p.y));
+  const maxX = Math.max(...ps.map(p => p.x)) + CW, maxY = Math.max(...ps.map(p => p.y)) + CH;
+  const pad = 40;
+  const w = (maxX - minX) + pad * 2, h = (maxY - minY) + pad * 2;
+
+  // Pull live sizing/colors from a rendered card so the export matches the
+  // current preset (top-down/left-right/compact) and breakpoint (mobile).
+  const sampleCard = document.querySelector('.nc');
+  const cs = sampleCard ? getComputedStyle(sampleCard) : null;
+  const csAvatar = sampleCard ? getComputedStyle(sampleCard.querySelector('.nc-avatar')) : null;
+  const csName   = sampleCard ? getComputedStyle(sampleCard.querySelector('.nc-name'))   : null;
+  const csTitleEl = sampleCard ? sampleCard.querySelector('.nc-title') : null;
+  const csDeptEl  = sampleCard ? sampleCard.querySelector('.nc-dept')  : null;
+  const root = getComputedStyle(document.documentElement);
+
+  const cardR      = cs ? parseFloat(cs.borderRadius) || 12 : 12;
+  const barH       = 5;
+  const avatarSize = csAvatar ? parseFloat(csAvatar.width) : 38;
+  const bodyPadX   = 13, bodyPadTop = 11;
+  const nameFont   = csName ? `600 ${csName.fontSize} ${csName.fontFamily}` : '600 13px sans-serif';
+  const titleFont  = csTitleEl ? `${getComputedStyle(csTitleEl).fontSize} ${getComputedStyle(csTitleEl).fontFamily}` : '11px sans-serif';
+  const deptFont   = csDeptEl ? `500 ${getComputedStyle(csDeptEl).fontSize} ${getComputedStyle(csDeptEl).fontFamily}` : '500 10px sans-serif';
+  const surface    = (root.getPropertyValue('--surface') || '#ffffff').trim();
+  const bg         = (root.getPropertyValue('--bg') || '#f0f2f5').trim();
+  const textColor  = (root.getPropertyValue('--text') || '#1a202c').trim();
+  const mutedColor = (root.getPropertyValue('--text-muted') || '#718096').trim();
+
+  toast('Preparing image…');
+
+  // Pre-load every photo used so drawImage calls below are synchronous.
+  const photoImgs = {};
+  await Promise.all(nodes.filter(n => n.photo).map(n => new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => { photoImgs[n.id] = img; resolve(); };
+    img.onerror = resolve;
+    img.src = n.photo;
+  })));
+
+  const scale = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(w * scale);
+  canvas.height = Math.ceil(h * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+  ctx.translate(pad - minX, pad - minY);
+
+  const roundRectPath = (x, y, rw, rh, r) => {
+    r = Math.max(0, Math.min(r, rw / 2, rh / 2));
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + rw, y,      x + rw, y + rh, r);
+    ctx.arcTo(x + rw, y + rh, x,      y + rh, r);
+    ctx.arcTo(x,      y + rh, x,      y,      r);
+    ctx.arcTo(x,      y,      x + rw, y,      r);
+    ctx.closePath();
+  };
+
+  // Connector lines (mirrors renderEdges' bezier math)
+  const lr = currentPreset === 'left-right' && !isMobile();
+  ctx.strokeStyle = '#c1cad6';
+  ctx.lineWidth = 2;
+  for (const n of nodes) {
+    if (!n.parentId) continue;
+    const pp = positions[n.parentId], cp = positions[n.id];
+    if (!pp || !cp) continue;
+    ctx.beginPath();
+    if (lr) {
+      const x1 = pp.x + CW, y1 = pp.y + CH / 2, x2 = cp.x, y2 = cp.y + CH / 2, mx = (x1 + x2) / 2;
+      ctx.moveTo(x1, y1); ctx.bezierCurveTo(mx, y1, mx, y2, x2, y2);
+    } else {
+      const x1 = pp.x + CW / 2, y1 = pp.y + CH, x2 = cp.x + CW / 2, y2 = cp.y, my = (y1 + y2) / 2;
+      ctx.moveTo(x1, y1); ctx.bezierCurveTo(x1, my, x2, my, x2, y2);
+    }
+    ctx.stroke();
+  }
+
+  // Cards
+  for (const n of nodes) {
+    const p = positions[n.id];
+    if (!p) continue;
+    const { x, y } = p;
+
+    roundRectPath(x, y, CW, CH, cardR);
+    ctx.fillStyle = surface;
+    ctx.fill();
+
+    ctx.save();
+    roundRectPath(x, y, CW, CH, cardR);
+    ctx.clip();
+    ctx.fillStyle = n.color;
+    ctx.fillRect(x, y, CW, barH);
+    ctx.restore();
+
+    const ax = x + bodyPadX, ay = y + barH + bodyPadTop;
+    const acx = ax + avatarSize / 2, acy = ay + avatarSize / 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(acx, acy, avatarSize / 2, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    const img = photoImgs[n.id];
+    if (img) {
+      const iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+      const size = Math.min(iw, ih);
+      ctx.drawImage(img, (iw - size) / 2, (ih - size) / 2, size, size, ax, ay, avatarSize, avatarSize);
+    } else {
+      ctx.fillStyle = n.color;
+      ctx.fillRect(ax, ay, avatarSize, avatarSize);
+      ctx.fillStyle = '#fff';
+      ctx.font = `700 14px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(initials(n.name), acx, acy + 1);
+    }
+    ctx.restore();
+
+    const tx = ax + avatarSize + 10;
+    const maxTextW = x + CW - bodyPadX - tx;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+
+    ctx.fillStyle = textColor;
+    ctx.font = nameFont;
+    ctx.fillText(truncateToWidth(ctx, n.name, maxTextW), tx, ay + 13);
+
+    let ny = ay + 13;
+    if (n.title) {
+      ny += 15;
+      ctx.fillStyle = mutedColor;
+      ctx.font = titleFont;
+      ctx.fillText(truncateToWidth(ctx, n.title, maxTextW), tx, ny);
+    }
+    if (n.dept) {
+      ny += 15;
+      ctx.font = deptFont;
+      const deptText = n.dept;
+      const deptW = ctx.measureText(deptText).width + 14;
+      roundRectPath(tx, ny - 9, Math.min(deptW, maxTextW + 14), 15, 20);
+      ctx.fillStyle = n.color + '1a';
+      ctx.fill();
+      ctx.fillStyle = n.color;
+      ctx.fillText(truncateToWidth(ctx, deptText, maxTextW), tx + 7, ny + 2);
+    }
+  }
+
+  canvas.toBlob(blob => {
+    if (!blob) { toast('Could not export image'); return; }
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), { href: url, download: 'orgchart.png' });
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Image exported');
+  }, 'image/png');
+}
+
+function truncateToWidth(ctx, text, maxW) {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let lo = 0, hi = text.length;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    const candidate = text.slice(0, mid) + '…';
+    if (ctx.measureText(candidate).width <= maxW) lo = mid; else hi = mid - 1;
+  }
+  return lo <= 0 ? '' : text.slice(0, lo) + '…';
+}
+
 function doImport() { document.getElementById('file-in').click(); }
 function onFile(e) {
   const file = e.target.files[0];
@@ -1645,7 +1877,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('pdf-overlay').classList.contains('open')) {
       closePdfModal();
     } else {
-      closeModal(); hideCtx(); closeConfirm(false); closeSearchPanel();
+      closeModal(); hideCtx(); closeConfirm(false); closeSearchPanel(); closeExportPanel();
     }
   }
   if (e.key === 'Enter' && document.getElementById('modal-overlay').classList.contains('open')) saveNode();
@@ -1663,6 +1895,7 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#ctxmenu')) hideCtx();
   if (!e.target.closest('#preset-wrap')) closePresetPanel();
   if (!e.target.closest('#search-wrap')) closeSearchPanel();
+  if (!e.target.closest('#export-wrap')) closeExportPanel();
 });
 
 /* ─────────────────────────────────────────────────────────────
