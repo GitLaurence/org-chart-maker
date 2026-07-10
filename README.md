@@ -56,9 +56,12 @@ Manually placed positions are saved per-node and survive page reloads. Switching
 | `+` / `=` | Zoom in |
 | `-` | Zoom out |
 | `0` | Fit chart to screen |
-| `Enter` | Save the open form |
-| `Esc` | Close modal / menu / search |
+| `Enter` | Save the open form, or edit the selected card |
+| `Delete` / `Backspace` | Delete the selected card |
+| `Esc` | Close modal / menu / search, or deselect a card |
 | `/` | Open search |
+
+Click a card (or `Tab` to it) to select it — selected cards are outlined and respond to `Enter`/`Delete`. Click empty canvas or press `Esc` to deselect.
 
 ## Mouse & Touch Controls
 

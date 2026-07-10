@@ -139,6 +139,7 @@ body {
 }
 .nc:hover { box-shadow: var(--shadow-lg); transform: translateY(-2px); }
 .nc.selected { border-color: var(--primary); box-shadow: 0 0 0 4px rgba(79,70,229,.12), var(--shadow-lg); }
+.nc:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 .nc-bar { height: 5px; border-radius: var(--r-lg) var(--r-lg) 0 0; }
 
@@ -842,6 +843,7 @@ let currentPreset    = 'top-down';  // 'top-down' | 'left-right' | 'compact'
 let manualPositions  = {};           // { [nodeId]: { x, y } }
 let locked           = true;
 let dragState        = null;         // { id, startPx, startPy, startClientX, startClientY, pointerId }
+let selectedId       = null;         // currently selected card, or null
 
 let CW   = 210;
 let CH   = 110;
@@ -991,6 +993,27 @@ function updateLockButton() {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   Card selection
+───────────────────────────────────────────────────────────── */
+function selectNode(id) {
+  if (selectedId === id) return;
+  selectedId = id;
+  updateSelection();
+}
+function deselectNode() {
+  if (!selectedId) return;
+  selectedId = null;
+  updateSelection();
+}
+function updateSelection() {
+  document.querySelectorAll('.nc').forEach(c => {
+    const sel = c.id.slice(3) === selectedId;
+    c.classList.toggle('selected', sel);
+    c.setAttribute('aria-selected', String(sel));
+  });
+}
+
+/* ─────────────────────────────────────────────────────────────
    Bootstrap
 ───────────────────────────────────────────────────────────── */
 function init() {
@@ -1087,6 +1110,7 @@ function layoutTree() {
 let positions = {};
 
 function render() {
+  if (selectedId && !nodes.some(n => n.id === selectedId)) selectedId = null;
   positions = layoutTree();
   renderNodes();
   renderEdges();
@@ -1108,6 +1132,10 @@ function renderNodes() {
     card.className = 'nc';
     card.id = 'nc-' + n.id;
     card.style.cssText = `left:${p.x}px;top:${p.y}px`;
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.setAttribute('aria-selected', String(n.id === selectedId));
+    card.classList.toggle('selected', n.id === selectedId);
 
     const deptBg = n.color + '1a';
     card.innerHTML = `
@@ -1115,7 +1143,7 @@ function renderNodes() {
       <div class="nc-body">
         <div class="nc-avatar" style="background:${n.photo ? 'transparent' : n.color}">
           ${n.photo
-            ? `<img src="${n.photo}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block" alt="">`
+            ? `<img src="${esc(n.photo)}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block" alt="">`
             : initials(n.name)}
         </div>
         <div class="nc-info">
@@ -1137,6 +1165,7 @@ function renderNodes() {
       </div>`;
 
     card.classList.toggle('draggable', !locked);
+    card.addEventListener('click', () => selectNode(n.id));
     card.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); showCtx(e, n.id); });
 
     // Long-press context menu for touch + drag-to-reposition when unlocked
@@ -1260,6 +1289,7 @@ function panStart(e) {
     wrap.classList.add('panning');
     wrap.setPointerCapture(e.pointerId);
     hideCtx();
+    deselectNode();
   }
 }
 function panMove(e) {
@@ -1586,7 +1616,7 @@ function onFile(e) {
             dept:     typeof n.dept  === 'string' ? n.dept  : '',
             parentId: typeof n.parentId === 'string' ? n.parentId : null,
             color:    typeof n.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(n.color) ? n.color : PALETTE[0],
-            photo:    typeof n.photo === 'string' ? n.photo : null
+            photo:    typeof n.photo === 'string' && /^data:image\/(png|jpe?g|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(n.photo) ? n.photo : null
           };
         });
       if (!sanitized.length) throw 0;
@@ -1645,7 +1675,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('pdf-overlay').classList.contains('open')) {
       closePdfModal();
     } else {
-      closeModal(); hideCtx(); closeConfirm(false); closeSearchPanel();
+      closeModal(); hideCtx(); closeConfirm(false); closeSearchPanel(); deselectNode();
     }
   }
   if (e.key === 'Enter' && document.getElementById('modal-overlay').classList.contains('open')) saveNode();
@@ -1656,6 +1686,12 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     document.getElementById('search-panel').classList.add('open');
     setTimeout(() => document.getElementById('search-input').focus(), 30);
+  }
+
+  const modalOpen = document.getElementById('modal-overlay').classList.contains('open');
+  if (selectedId && !modalOpen && !e.target.matches('input,select,textarea')) {
+    if (e.key === 'Enter') { e.preventDefault(); openEdit(selectedId); }
+    else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); askDelete(selectedId); }
   }
 });
 
@@ -1690,7 +1726,7 @@ function updatePhotoPreview() {
   const preview   = document.getElementById('photo-preview');
   const removeBtn = document.getElementById('btn-remove-photo');
   if (pendingPhoto) {
-    preview.innerHTML = `<img src="${pendingPhoto}" alt="">`;
+    preview.innerHTML = `<img src="${esc(pendingPhoto)}" alt="">`;
     preview.style.background = 'transparent';
     removeBtn.style.display = '';
   } else {
