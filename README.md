@@ -17,6 +17,7 @@ A lightweight, single-file organizational chart builder built with vanilla HTML,
 - **Search** — find people by name, title, or department; matches are highlighted and the chart pans to the first result
 - **Auto-save** — chart, layout preference, and card positions persist in `localStorage` and restore on reload
 - **Export / Import** — save and load charts as `.json` files (photos included); malformed entries, invalid photo data, and broken/cyclic reporting lines are sanitized on import. Imported files always get freshly generated internal IDs, so a crafted `.json` can't inject markup or script into the chart.
+- **Export as image** — download the chart as a `.png` snapshot for sharing, printing, or dropping into a slide deck
 
 ## Usage
 
@@ -82,6 +83,10 @@ Each person can have a photo avatar instead of the default colored initials circ
 Photos are stored as base64 strings inside each person's data and travel with Export/Import JSON. Each photo is roughly 3–5 KB; 50 people with photos ≈ 150–250 KB total.
 
 > **Note:** PDF support requires an internet connection on first load to fetch the PDF.js library from unpkg.com.
+
+## Export as Image
+
+Click the **Export** button in the header and choose **Export as Image** to download a `.png` snapshot of the current chart — connectors, cards, avatars, and colors are rendered exactly as shown on screen. Useful for pasting into docs, slides, or emails without needing to re-import anything. Choose **Export as JSON** from the same menu to save re-importable chart data instead.
 
 ## Data Format
 

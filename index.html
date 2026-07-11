@@ -644,10 +644,32 @@ body {
     <span class="btn-label">Import</span>
   </button>
 
-  <button class="btn btn-secondary" onclick="doExport()">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-    <span class="btn-label">Export</span>
-  </button>
+  <div class="preset-wrap" id="export-wrap">
+    <button class="btn btn-secondary" id="btn-export" onclick="toggleExportPanel()" title="Export chart">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      <span class="btn-label">Export</span>
+    </button>
+    <div class="preset-panel" id="export-panel">
+      <div class="preset-opt" onclick="doExportJson()">
+        <svg class="preset-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <div class="preset-text">
+          <div class="preset-name">Export as JSON</div>
+          <div class="preset-desc">Full data, re-importable later</div>
+        </div>
+      </div>
+      <div class="preset-opt" onclick="doExportPng()">
+        <svg class="preset-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+        </svg>
+        <div class="preset-text">
+          <div class="preset-name">Export as Image</div>
+          <div class="preset-desc">PNG snapshot for sharing or printing</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="sep"></div>
 
@@ -821,6 +843,7 @@ let nodes    = [];
 let editId   = null;   // id being edited, null = new
 let ctxId    = null;   // id for context menu
 let cfCb     = null;   // confirm callback
+let lastFocusedEl = null;  // element to restore focus to when the active overlay closes
 
 let pendingPhoto  = null;  // base64 JPEG or null, staged in edit modal
 let pdfDoc        = null;  // PDFDocumentProxy
@@ -1358,7 +1381,6 @@ function openAdd(parentId) {
   pickColor(PALETTE[Math.floor(Math.random() * PALETTE.length)]);
   loadPhotoIntoModal(null);
   showModal();
-  setTimeout(() => document.getElementById('f-name').focus(), 80);
 }
 
 function openEdit(id) {
@@ -1397,8 +1419,15 @@ function populateParent(excludeId, selectedId) {
   }
 }
 
-function showModal()  { document.getElementById('modal-overlay').classList.add('open'); }
-function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+function showModal() {
+  lastFocusedEl = document.activeElement;
+  document.getElementById('modal-overlay').classList.add('open');
+  setTimeout(() => document.getElementById('f-name').focus(), 80);
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+  restoreFocus();
+}
 function overlayClick(e) { if (e.target === document.getElementById('modal-overlay')) closeModal(); }
 
 function saveNode() {
@@ -1512,13 +1541,16 @@ function ctxDelete()   { const id=ctxId; hideCtx(); askDelete(id);}
 function showConfirm(title, msg, cb) {
   document.getElementById('cf-title').textContent = title;
   document.getElementById('cf-msg').textContent   = msg;
+  lastFocusedEl = document.activeElement;
   document.getElementById('confirm').classList.add('open');
   cfCb = cb;
+  setTimeout(() => document.querySelector('#confirm .btn-danger').focus(), 30);
 }
 function closeConfirm(ok) {
   document.getElementById('confirm').classList.remove('open');
   if (ok && cfCb) cfCb();
   cfCb = null;
+  restoreFocus();
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -1564,7 +1596,17 @@ function load() {
 /* ─────────────────────────────────────────────────────────────
    Export / Import JSON
 ───────────────────────────────────────────────────────────── */
-function doExport() {
+function toggleExportPanel() {
+  const panel = document.getElementById('export-panel');
+  panel.classList.toggle('open');
+}
+function closeExportPanel() {
+  const panel = document.getElementById('export-panel');
+  if (panel) panel.classList.remove('open');
+}
+
+function doExportJson() {
+  closeExportPanel();
   if (!nodes.length) { toast('Nothing to export'); return; }
   const blob = new Blob([JSON.stringify(nodes, null, 2)], { type:'application/json' });
   const url  = URL.createObjectURL(blob);
@@ -1572,6 +1614,182 @@ function doExport() {
   a.click();
   URL.revokeObjectURL(url);
   toast('Chart exported');
+}
+
+async function doExportPng() {
+  closeExportPanel();
+  if (!nodes.length) { toast('Nothing to export'); return; }
+  try {
+    const canvas = await renderChartToCanvas();
+    canvas.toBlob(blob => {
+      if (!blob) { toast('Could not export image'); return; }
+      const url = URL.createObjectURL(blob);
+      const a   = Object.assign(document.createElement('a'), { href:url, download:'orgchart.png' });
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('Image exported');
+    }, 'image/png');
+  } catch(_) {
+    toast('Could not export image');
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Chart → PNG rendering (mirrors the DOM card/connector layout)
+───────────────────────────────────────────────────────────── */
+function roundRectPath(ctx, x, y, w, h, r) {
+  const rr = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x,     y + h, rr);
+  ctx.arcTo(x,     y + h, x,     y,     rr);
+  ctx.arcTo(x,     y,     x + w, y,     rr);
+  ctx.closePath();
+}
+
+function loadImg(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload  = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+function truncateToWidth(ctx, text, maxW) {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+  return t + '…';
+}
+
+async function renderChartToCanvas() {
+  const ps = Object.values(positions);
+  const mnX = Math.min(...ps.map(p => p.x));
+  const mnY = Math.min(...ps.map(p => p.y));
+  const mxX = Math.max(...ps.map(p => p.x)) + CW;
+  const mxY = Math.max(...ps.map(p => p.y)) + CH;
+  const pad = 40;
+  const W = mxX - mnX + pad * 2;
+  const H = mxY - mnY + pad * 2;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  const canvas = document.createElement('canvas');
+  canvas.width  = Math.ceil(W * dpr);
+  canvas.height = Math.ceil(H * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const ox = pad - mnX, oy = pad - mnY;
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  const lr = currentPreset === 'left-right' && !isMobile();
+  ctx.strokeStyle = '#c1cad6';
+  ctx.lineWidth = 2;
+  for (const n of nodes) {
+    if (!n.parentId) continue;
+    const pp = positions[n.parentId], cp = positions[n.id];
+    if (!pp || !cp) continue;
+    ctx.beginPath();
+    if (lr) {
+      const x1 = pp.x + CW + ox, y1 = pp.y + CH / 2 + oy;
+      const x2 = cp.x + ox,      y2 = cp.y + CH / 2 + oy;
+      const mx = (x1 + x2) / 2;
+      ctx.moveTo(x1, y1);
+      ctx.bezierCurveTo(mx, y1, mx, y2, x2, y2);
+    } else {
+      const x1 = pp.x + CW / 2 + ox, y1 = pp.y + CH + oy;
+      const x2 = cp.x + CW / 2 + ox, y2 = cp.y + oy;
+      const my = (y1 + y2) / 2;
+      ctx.moveTo(x1, y1);
+      ctx.bezierCurveTo(x1, my, x2, my, x2, y2);
+    }
+    ctx.stroke();
+  }
+
+  const imgs = {};
+  await Promise.all(nodes.filter(n => n.photo).map(async n => { imgs[n.id] = await loadImg(n.photo); }));
+
+  const FONT = 'ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif';
+  const font = (weight, size) => `${weight} ${size}px ${FONT}`;
+
+  for (const n of nodes) {
+    const p = positions[n.id];
+    if (!p) continue;
+    const x = p.x + ox, y = p.y + oy;
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.14)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 3;
+    ctx.fillStyle = '#ffffff';
+    roundRectPath(ctx, x, y, CW, CH, 12);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    roundRectPath(ctx, x, y, CW, CH, 12);
+    ctx.clip();
+    ctx.fillStyle = n.color;
+    ctx.fillRect(x, y, CW, 5);
+    ctx.restore();
+
+    const ar = 19, ax = x + 13 + ar, ay = y + 11 + ar;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(ax, ay, ar, 0, Math.PI * 2);
+    ctx.closePath();
+    ctx.clip();
+    if (imgs[n.id]) {
+      ctx.drawImage(imgs[n.id], ax - ar, ay - ar, ar * 2, ar * 2);
+    } else {
+      ctx.fillStyle = n.color;
+      ctx.fillRect(ax - ar, ay - ar, ar * 2, ar * 2);
+      ctx.fillStyle = '#fff';
+      ctx.font = font('700', 14);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(initials(n.name), ax, ay + 1);
+    }
+    ctx.restore();
+
+    const tx0 = x + 13 + ar * 2 + 10;
+    const maxTextW = CW - (13 + ar * 2 + 10) - 13;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+
+    let ny = y + 11 + 13;
+    ctx.fillStyle = '#1a202c';
+    ctx.font = font('600', 13);
+    ctx.fillText(truncateToWidth(ctx, n.name, maxTextW), tx0, ny);
+
+    if (n.title) {
+      ny += 16;
+      ctx.fillStyle = '#718096';
+      ctx.font = font('400', 11);
+      ctx.fillText(truncateToWidth(ctx, n.title, maxTextW), tx0, ny);
+    }
+
+    if (n.dept) {
+      ny += n.title ? 18 : 16;
+      const padX = 7, pillH = 16;
+      ctx.font = font('500', 10);
+      const label = truncateToWidth(ctx, n.dept, maxTextW - padX * 2);
+      const pillW = Math.min(ctx.measureText(label).width + padX * 2, maxTextW);
+      ctx.fillStyle = n.color + '1a';
+      roundRectPath(ctx, tx0, ny - pillH + 4, pillW, pillH, 8);
+      ctx.fill();
+      ctx.fillStyle = n.color;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, tx0 + padX, ny - pillH / 2 + 4 + 1);
+      ctx.textBaseline = 'alphabetic';
+    }
+  }
+
+  return canvas;
 }
 function breakImportCycles(list) {
   const byId = new Map(list.map(n => [n.id, n]));
@@ -1669,6 +1887,33 @@ function toast(msg, opts) {
 }
 
 /* ─────────────────────────────────────────────────────────────
+   Focus management for overlays
+───────────────────────────────────────────────────────────── */
+function restoreFocus() {
+  if (!lastFocusedEl) return;
+  const el = lastFocusedEl;
+  lastFocusedEl = null;
+  if (typeof el.focus === 'function') el.focus();
+}
+
+function openOverlayContainer() {
+  if (document.getElementById('confirm').classList.contains('open'))      return document.querySelector('#confirm .cfbox');
+  if (document.getElementById('pdf-overlay').classList.contains('open'))  return document.querySelector('.pdf-modal');
+  if (document.getElementById('modal-overlay').classList.contains('open'))return document.querySelector('#modal-overlay .modal');
+  return null;
+}
+
+function trapFocus(e, container) {
+  const focusables = Array.from(container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+    .filter(el => !el.disabled && el.offsetParent !== null);
+  if (!focusables.length) return;
+  const first = focusables[0], last = focusables[focusables.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  else if (!container.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+}
+
+/* ─────────────────────────────────────────────────────────────
    Keyboard shortcuts
 ───────────────────────────────────────────────────────────── */
 document.addEventListener('keydown', e => {
@@ -1678,6 +1923,10 @@ document.addEventListener('keydown', e => {
     } else {
       closeModal(); hideCtx(); closeConfirm(false); closeSearchPanel();
     }
+  }
+  if (e.key === 'Tab') {
+    const container = openOverlayContainer();
+    if (container) trapFocus(e, container);
   }
   if (e.key === 'Enter' && document.getElementById('modal-overlay').classList.contains('open')) saveNode();
   if ((e.key === '+' || e.key === '=') && !e.target.matches('input,select,textarea')) zoomBy(1.15);
@@ -1694,6 +1943,7 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#ctxmenu')) hideCtx();
   if (!e.target.closest('#preset-wrap')) closePresetPanel();
   if (!e.target.closest('#search-wrap')) closeSearchPanel();
+  if (!e.target.closest('#export-wrap')) closeExportPanel();
 });
 
 /* ─────────────────────────────────────────────────────────────
@@ -1773,6 +2023,7 @@ async function onPdfFile(event) {
   event.target.value = '';
 
   const overlay = document.getElementById('pdf-overlay');
+  lastFocusedEl = document.activeElement;
   overlay.classList.add('open');
   setLoading(true);
 
@@ -1784,6 +2035,7 @@ async function onPdfFile(event) {
     await renderPdfPage(1);
   } catch(_) {
     overlay.classList.remove('open');
+    restoreFocus();
     toast('Could not load PDF');
   } finally {
     setLoading(false);
@@ -1884,6 +2136,7 @@ function closePdfModal() {
   document.getElementById('pdf-overlay').classList.remove('open');
   if (pdfDoc) { pdfDoc.destroy(); pdfDoc = null; }
   cropRect = null; cropStart = null; isDragging = false;
+  restoreFocus();
 }
 
 let _resizeTimer = null;
