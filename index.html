@@ -716,7 +716,7 @@ body {
       </div>
       <div class="fg">
         <label class="flabel">Full Name <span style="color:var(--danger)">*</span></label>
-        <input class="finput" id="f-name" placeholder="e.g. Jane Smith" />
+        <input class="finput" id="f-name" placeholder="e.g. Jane Smith" oninput="updatePhotoPreview()" />
       </div>
       <div class="fg">
         <label class="flabel">Job Title <span class="opt">(optional)</span></label>
@@ -1115,7 +1115,7 @@ function renderNodes() {
       <div class="nc-body">
         <div class="nc-avatar" style="background:${n.photo ? 'transparent' : n.color}">
           ${n.photo
-            ? `<img src="${n.photo}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block" alt="">`
+            ? `<img src="${esc(n.photo)}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;display:block" alt="">`
             : initials(n.name)}
         </div>
         <div class="nc-info">
@@ -1439,12 +1439,22 @@ function buildSwatches() {
     s.className = 'swatch';
     s.dataset.c = c;
     s.style.background = c;
+    s.setAttribute('role', 'button');
+    s.setAttribute('tabindex', '0');
+    s.setAttribute('aria-label', 'Color ' + c);
+    s.setAttribute('aria-pressed', 'false');
     s.onclick = () => pickColor(c);
+    s.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pickColor(c); } };
     box.appendChild(s);
   }
 }
 function pickColor(c) {
-  document.querySelectorAll('.swatch').forEach(s => s.classList.toggle('active', s.dataset.c === c));
+  document.querySelectorAll('.swatch').forEach(s => {
+    const active = s.dataset.c === c;
+    s.classList.toggle('active', active);
+    s.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+  updatePhotoPreview();
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -1563,6 +1573,20 @@ function doExport() {
   URL.revokeObjectURL(url);
   toast('Chart exported');
 }
+function breakImportCycles(list) {
+  const byId = new Map(list.map(n => [n.id, n]));
+  for (const n of list) {
+    const seen = new Set([n.id]);
+    let cur = n;
+    while (cur.parentId) {
+      if (seen.has(cur.parentId)) { n.parentId = null; break; }
+      seen.add(cur.parentId);
+      cur = byId.get(cur.parentId);
+      if (!cur) break;
+    }
+  }
+}
+
 function doImport() { document.getElementById('file-in').click(); }
 function onFile(e) {
   const file = e.target.files[0];
@@ -1573,26 +1597,33 @@ function onFile(e) {
       const data = JSON.parse(ev.target.result);
       if (!Array.isArray(data)) throw 0;
 
-      const seenIds = new Set();
+      // Always mint fresh internal ids — ids/photo strings from an imported file are
+      // untrusted and get interpolated into onclick/src attributes at render time,
+      // so anything imported here must not be able to break out of that markup.
+      const idMap = new Map();  // original (attacker-controlled) id -> safe generated id
+      const PHOTO_RE = /^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/;
       const sanitized = data
         .filter(n => n && typeof n.name === 'string' && n.name.trim())
         .map(n => {
-          const id = (typeof n.id === 'string' && n.id && !seenIds.has(n.id)) ? n.id : uid();
-          seenIds.add(id);
+          const id = uid();
+          if (typeof n.id === 'string' && n.id && !idMap.has(n.id)) idMap.set(n.id, id);
           return {
             id,
+            origParentId: typeof n.parentId === 'string' ? n.parentId : null,
             name:     n.name.trim(),
             title:    typeof n.title === 'string' ? n.title : '',
             dept:     typeof n.dept  === 'string' ? n.dept  : '',
-            parentId: typeof n.parentId === 'string' ? n.parentId : null,
             color:    typeof n.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(n.color) ? n.color : PALETTE[0],
-            photo:    typeof n.photo === 'string' ? n.photo : null
+            photo:    typeof n.photo === 'string' && PHOTO_RE.test(n.photo) ? n.photo : null
           };
         });
       if (!sanitized.length) throw 0;
 
-      const ids = new Set(sanitized.map(n => n.id));
-      sanitized.forEach(n => { if (n.parentId && !ids.has(n.parentId)) n.parentId = null; });
+      sanitized.forEach(n => {
+        n.parentId = (n.origParentId && idMap.has(n.origParentId)) ? idMap.get(n.origParentId) : null;
+        delete n.origParentId;
+      });
+      breakImportCycles(sanitized);
 
       nodes = sanitized;
       manualPositions = {};

@@ -16,7 +16,7 @@ A lightweight, single-file organizational chart builder built with vanilla HTML,
 - **Undo** — deleting a person or clearing the chart shows an Undo action for a few seconds
 - **Search** — find people by name, title, or department; matches are highlighted and the chart pans to the first result
 - **Auto-save** — chart, layout preference, and card positions persist in `localStorage` and restore on reload
-- **Export / Import** — save and load charts as `.json` files (photos included); malformed or duplicate entries are skipped on import
+- **Export / Import** — save and load charts as `.json` files (photos included); malformed entries, invalid photo data, and broken/cyclic reporting lines are sanitized on import. Imported files always get freshly generated internal IDs, so a crafted `.json` can't inject markup or script into the chart.
 
 ## Usage
 
