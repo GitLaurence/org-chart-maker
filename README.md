@@ -12,7 +12,9 @@ A lightweight, single-file organizational chart builder built with vanilla HTML,
 - **Pan & zoom** — drag to pan, scroll to zoom, or use on-screen controls; pinch-to-zoom on touch
 - **Mobile responsive** — automatically stacks cards vertically on small screens; layout picker opens as a bottom sheet
 - **Edit & delete** — inline action buttons or right-click / long-press context menu
+- **Duplicate** — right-click / long-press a card and choose Duplicate to clone a person as a sibling
 - **Smart deletion** — direct reports are reassigned to the deleted person's parent
+- **Dark mode** — automatically follows your OS/browser color scheme
 - **Undo** — deleting a person or clearing the chart shows an Undo action for a few seconds
 - **Search** — find people by name, title, or department; matches are highlighted and the chart pans to the first result
 - **Auto-save** — chart, layout preference, and card positions persist in `localStorage` and restore on reload
