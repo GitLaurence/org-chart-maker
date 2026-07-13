@@ -644,10 +644,32 @@ body {
     <span class="btn-label">Import</span>
   </button>
 
-  <button class="btn btn-secondary" onclick="doExport()">
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-    <span class="btn-label">Export</span>
-  </button>
+  <div class="preset-wrap" id="export-wrap">
+    <button class="btn btn-secondary" id="btn-export" onclick="toggleExportPanel()" title="Export chart">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      <span class="btn-label">Export</span>
+    </button>
+    <div class="preset-panel" id="export-panel">
+      <div class="preset-opt" onclick="doExportJSON()">
+        <svg class="preset-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <div class="preset-text">
+          <div class="preset-name">Export as JSON</div>
+          <div class="preset-desc">Chart data — reopen or share later</div>
+        </div>
+      </div>
+      <div class="preset-opt" onclick="doExportImage()">
+        <svg class="preset-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
+        </svg>
+        <div class="preset-text">
+          <div class="preset-name">Export as Image</div>
+          <div class="preset-desc">Download a PNG snapshot</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="sep"></div>
 
@@ -753,6 +775,10 @@ body {
   <div class="cxi" onclick="ctxAddChild()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     Add Direct Report
+  </div>
+  <div class="cxi" onclick="ctxDuplicate()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+    Duplicate
   </div>
   <div class="cxsep"></div>
   <div class="cxi d" onclick="ctxDelete()">
@@ -1502,9 +1528,20 @@ function showCtx(e, id) {
   if (r.bottom > innerHeight) m.style.top  = (e.clientY - r.height) + 'px';
 }
 function hideCtx() { document.getElementById('ctxmenu').classList.remove('open'); ctxId = null; }
-function ctxEdit()     { const id=ctxId; hideCtx(); openEdit(id); }
-function ctxAddChild() { const id=ctxId; hideCtx(); openAdd(id);  }
-function ctxDelete()   { const id=ctxId; hideCtx(); askDelete(id);}
+function ctxEdit()      { const id=ctxId; hideCtx(); openEdit(id); }
+function ctxAddChild()  { const id=ctxId; hideCtx(); openAdd(id);  }
+function ctxDuplicate() { const id=ctxId; hideCtx(); duplicateNode(id); }
+function ctxDelete()    { const id=ctxId; hideCtx(); askDelete(id);}
+
+function duplicateNode(id) {
+  const n = nodes.find(x => x.id === id);
+  if (!n) return;
+  const copy = { ...n, id: uid(), name: n.name + ' (Copy)' };
+  const idx = nodes.findIndex(x => x.id === id);
+  nodes.splice(idx + 1, 0, copy);
+  render();
+  toast('Person duplicated');
+}
 
 /* ─────────────────────────────────────────────────────────────
    Confirm dialog
@@ -1564,7 +1601,17 @@ function load() {
 /* ─────────────────────────────────────────────────────────────
    Export / Import JSON
 ───────────────────────────────────────────────────────────── */
-function doExport() {
+function toggleExportPanel() {
+  const panel = document.getElementById('export-panel');
+  panel.classList.toggle('open');
+}
+function closeExportPanel() {
+  const panel = document.getElementById('export-panel');
+  if (panel) panel.classList.remove('open');
+}
+
+function doExportJSON() {
+  closeExportPanel();
   if (!nodes.length) { toast('Nothing to export'); return; }
   const blob = new Blob([JSON.stringify(nodes, null, 2)], { type:'application/json' });
   const url  = URL.createObjectURL(blob);
@@ -1572,6 +1619,173 @@ function doExport() {
   a.click();
   URL.revokeObjectURL(url);
   toast('Chart exported');
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Export as PNG image
+───────────────────────────────────────────────────────────── */
+function loadImageAsync(src) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload  = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
+  ctx.closePath();
+}
+
+function fillEllipsizedText(ctx, text, x, y, maxW) {
+  let t = text;
+  if (ctx.measureText(t).width > maxW) {
+    while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    t = t + '…';
+  }
+  ctx.fillText(t, x, y);
+}
+
+function exportBBox() {
+  const ps = Object.values(positions);
+  if (!ps.length) return null;
+  const minX = Math.min(...ps.map(p => p.x));
+  const minY = Math.min(...ps.map(p => p.y));
+  const maxX = Math.max(...ps.map(p => p.x)) + CW;
+  const maxY = Math.max(...ps.map(p => p.y)) + CH;
+  return { minX, minY, w: maxX - minX + PAD * 2, h: maxY - minY + PAD * 2 };
+}
+
+function drawEdgesOnCanvas(ctx) {
+  const lr = currentPreset === 'left-right' && !isMobile();
+  ctx.strokeStyle = '#c1cad6';
+  ctx.lineWidth = 2;
+  for (const n of nodes) {
+    if (!n.parentId) continue;
+    const pp = positions[n.parentId];
+    const cp = positions[n.id];
+    if (!pp || !cp) continue;
+
+    let x1, y1, x2, y2, cx1, cy1, cx2, cy2;
+    if (lr) {
+      x1 = pp.x + CW; y1 = pp.y + CH / 2;
+      x2 = cp.x;      y2 = cp.y + CH / 2;
+      const mx = (x1 + x2) / 2;
+      cx1 = mx; cy1 = y1; cx2 = mx; cy2 = y2;
+    } else {
+      x1 = pp.x + CW / 2; y1 = pp.y + CH;
+      x2 = cp.x + CW / 2; y2 = cp.y;
+      const my = (y1 + y2) / 2;
+      cx1 = x1; cy1 = my; cx2 = x2; cy2 = my;
+    }
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.bezierCurveTo(cx1, cy1, cx2, cy2, x2, y2);
+    ctx.stroke();
+  }
+}
+
+async function drawNodeOnCanvas(ctx, n, p) {
+  roundRectPath(ctx, p.x, p.y, CW, CH, 12);
+  ctx.save();
+  ctx.clip();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(p.x, p.y, CW, CH);
+  ctx.fillStyle = n.color;
+  ctx.fillRect(p.x, p.y, CW, 5);
+  ctx.restore();
+
+  const cx = p.x + 32, cy = p.y + 35, ar = 19;
+  const img = n.photo ? await loadImageAsync(n.photo) : null;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, ar, 0, Math.PI * 2);
+  ctx.clip();
+  if (img) {
+    ctx.drawImage(img, cx - ar, cy - ar, ar * 2, ar * 2);
+  } else {
+    ctx.fillStyle = n.color;
+    ctx.fillRect(cx - ar, cy - ar, ar * 2, ar * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '700 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(initials(n.name), cx, cy + 1);
+  }
+  ctx.restore();
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  const tx = p.x + 61, tMaxW = CW - 74;
+  let cy2 = p.y + 16;
+
+  ctx.fillStyle = '#1a202c';
+  ctx.font = '600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  fillEllipsizedText(ctx, n.name, tx, cy2, tMaxW);
+  cy2 += 16;
+
+  if (n.title) {
+    ctx.fillStyle = '#718096';
+    ctx.font = '400 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    fillEllipsizedText(ctx, n.title, tx, cy2 + 2, tMaxW);
+    cy2 += 16;
+  }
+
+  if (n.dept) {
+    cy2 += 5;
+    ctx.font = '500 10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    const padX = 7;
+    const badgeW = Math.min(ctx.measureText(n.dept).width + padX * 2, tMaxW);
+    roundRectPath(ctx, tx, cy2, badgeW, 16, 8);
+    ctx.fillStyle = n.color + '1a';
+    ctx.fill();
+    ctx.fillStyle = n.color;
+    fillEllipsizedText(ctx, n.dept, tx + padX, cy2 + 3, badgeW - padX * 2);
+  }
+}
+
+async function doExportImage() {
+  closeExportPanel();
+  if (!nodes.length) { toast('Nothing to export'); return; }
+  try {
+    const bbox = exportBBox();
+    if (!bbox) { toast('Nothing to export'); return; }
+
+    const SCALE = Math.min(2, 4000 / Math.max(bbox.w, bbox.h, 1));
+    const canvas = document.createElement('canvas');
+    canvas.width  = Math.round(bbox.w * SCALE);
+    canvas.height = Math.round(bbox.h * SCALE);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(SCALE, SCALE);
+    ctx.translate(-(bbox.minX - PAD), -(bbox.minY - PAD));
+
+    ctx.fillStyle = '#f0f2f5';
+    ctx.fillRect(bbox.minX - PAD, bbox.minY - PAD, bbox.w, bbox.h);
+
+    drawEdgesOnCanvas(ctx);
+    for (const n of nodes) {
+      const p = positions[n.id];
+      if (p) await drawNodeOnCanvas(ctx, n, p);
+    }
+
+    canvas.toBlob(blob => {
+      if (!blob) { toast('Could not export image'); return; }
+      const url = URL.createObjectURL(blob);
+      const a   = Object.assign(document.createElement('a'), { href: url, download: 'orgchart.png' });
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('Image exported');
+    }, 'image/png');
+  } catch (_) {
+    toast('Could not export image');
+  }
 }
 function breakImportCycles(list) {
   const byId = new Map(list.map(n => [n.id, n]));
@@ -1676,7 +1890,7 @@ document.addEventListener('keydown', e => {
     if (document.getElementById('pdf-overlay').classList.contains('open')) {
       closePdfModal();
     } else {
-      closeModal(); hideCtx(); closeConfirm(false); closeSearchPanel();
+      closeModal(); hideCtx(); closeConfirm(false); closeSearchPanel(); closePresetPanel(); closeExportPanel();
     }
   }
   if (e.key === 'Enter' && document.getElementById('modal-overlay').classList.contains('open')) saveNode();
@@ -1694,6 +1908,7 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#ctxmenu')) hideCtx();
   if (!e.target.closest('#preset-wrap')) closePresetPanel();
   if (!e.target.closest('#search-wrap')) closeSearchPanel();
+  if (!e.target.closest('#export-wrap')) closeExportPanel();
 });
 
 /* ─────────────────────────────────────────────────────────────
