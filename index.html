@@ -840,6 +840,7 @@ let longPressTimer = null, longPressId = null;
 
 let currentPreset    = 'top-down';  // 'top-down' | 'left-right' | 'compact'
 let manualPositions  = {};           // { [nodeId]: { x, y } }
+let selectedColor    = null;         // color chosen in the add/edit modal (may not match a swatch)
 let locked           = true;
 let dragState        = null;         // { id, startPx, startPy, startClientX, startClientY, pointerId }
 
@@ -1411,7 +1412,7 @@ function saveNode() {
     title:    document.getElementById('f-title').value.trim(),
     dept:     document.getElementById('f-dept').value.trim(),
     parentId: document.getElementById('f-parent').value || null,
-    color:    document.querySelector('.swatch.active')?.dataset.c || PALETTE[0],
+    color:    selectedColor || PALETTE[0],
     photo:    pendingPhoto
   };
 
@@ -1449,6 +1450,7 @@ function buildSwatches() {
   }
 }
 function pickColor(c) {
+  selectedColor = c;
   document.querySelectorAll('.swatch').forEach(s => {
     const active = s.dataset.c === c;
     s.classList.toggle('active', active);
@@ -1613,7 +1615,7 @@ function onFile(e) {
             name:     n.name.trim(),
             title:    typeof n.title === 'string' ? n.title : '',
             dept:     typeof n.dept  === 'string' ? n.dept  : '',
-            color:    typeof n.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(n.color) ? n.color : PALETTE[0],
+            color:    (typeof n.color === 'string' && normalizeHex(n.color)) || PALETTE[0],
             photo:    typeof n.photo === 'string' && PHOTO_RE.test(n.photo) ? n.photo : null
           };
         });
@@ -1703,6 +1705,14 @@ function uid() { return Math.random().toString(36).slice(2,9) + Date.now().toStr
 function initials(s) { return s.trim().split(/\s+/).map(w=>w[0]).join('').toUpperCase().slice(0,2); }
 function esc(s) { return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+// Expands 3-digit hex to 6-digit; rejects 4/8-digit (alpha) forms since callers
+// append their own alpha suffix (e.g. `color + '1a'`), which only works on #rrggbb.
+function normalizeHex(c) {
+  if (/^#[0-9a-fA-F]{6}$/.test(c)) return c;
+  if (/^#[0-9a-fA-F]{3}$/.test(c)) return '#' + c.slice(1).split('').map(ch => ch + ch).join('');
+  return null;
+}
+
 /* ─────────────────────────────────────────────────────────────
    Photo management
 ───────────────────────────────────────────────────────────── */
@@ -1727,7 +1737,7 @@ function updatePhotoPreview() {
   } else {
     preview.innerHTML = '';
     const name  = document.getElementById('f-name').value.trim();
-    const color = document.querySelector('.swatch.active')?.dataset.c || PALETTE[0];
+    const color = selectedColor || PALETTE[0];
     preview.style.background = color;
     preview.textContent = name ? initials(name) : '?';
     removeBtn.style.display = 'none';
@@ -1887,9 +1897,18 @@ function closePdfModal() {
 }
 
 let _resizeTimer = null;
+let _wasMobile = isMobile();
 window.addEventListener('resize', () => {
   clearTimeout(_resizeTimer);
-  _resizeTimer = setTimeout(() => { setLayoutMode(); render(); fitView(); }, 150);
+  _resizeTimer = setTimeout(() => {
+    const mobileNow = isMobile();
+    setLayoutMode();
+    render();
+    // Only re-fit the view when crossing the mobile/desktop breakpoint —
+    // otherwise a minor window resize would discard the user's pan/zoom.
+    if (mobileNow !== _wasMobile) fitView();
+    _wasMobile = mobileNow;
+  }, 150);
 });
 
 /* ── Start ── */
