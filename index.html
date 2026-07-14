@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="A lightweight, single-file organizational chart builder. Add people, drag to reposition, and export/import charts as JSON — no server or account required.">
+<meta name="theme-color" content="#4f46e5">
 <title>OrgChart Maker</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+CiAgPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iNyIgZmlsbD0iIzRmNDZlNSIvPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIyLjQiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+CiAgICA8cmVjdCB4PSIxMyIgeT0iNSIgd2lkdGg9IjYiIGhlaWdodD0iNSIgcng9IjEiLz4KICAgIDxyZWN0IHg9IjQiIHk9IjE5IiB3aWR0aD0iNiIgaGVpZ2h0PSI1IiByeD0iMSIvPgogICAgPHJlY3QgeD0iMTMiIHk9IjE5IiB3aWR0aD0iNiIgaGVpZ2h0PSI1IiByeD0iMSIvPgogICAgPHJlY3QgeD0iMjIiIHk9IjE5IiB3aWR0aD0iNiIgaGVpZ2h0PSI1IiByeD0iMSIvPgogICAgPGxpbmUgeDE9IjE2IiB5MT0iMTAiIHgyPSIxNiIgeTI9IjE1Ii8+CiAgICA8bGluZSB4MT0iNyIgeTE9IjE5IiB4Mj0iNyIgeTI9IjE1Ii8+CiAgICA8bGluZSB4MT0iMTYiIHkxPSIxOSIgeDI9IjE2IiB5Mj0iMTUiLz4KICAgIDxsaW5lIHgxPSIyNSIgeTE9IjE5IiB4Mj0iMjUiIHkyPSIxNSIvPgogICAgPGxpbmUgeDE9IjciIHkxPSIxNSIgeDI9IjI1IiB5Mj0iMTUiLz4KICA8L2c+Cjwvc3ZnPgo=">
 <style>
@@ -166,7 +168,7 @@ body {
   border-top: 1px solid var(--border);
   opacity: 0; transition: opacity .15s;
 }
-.nc:hover .nc-actions { opacity: 1; }
+.nc:hover .nc-actions, .nc:focus-within .nc-actions { opacity: 1; }
 @media (hover: none) { .nc-actions { opacity: 1; } }
 
 .nc-btn {
@@ -620,7 +622,7 @@ body {
       <span class="btn-label">Search</span>
     </button>
     <div class="search-panel" id="search-panel">
-      <input class="finput" id="search-input" placeholder="Search name, title, or department…" oninput="onSearchInput()" autocomplete="off" aria-label="Search people">
+      <input class="finput" id="search-input" placeholder="Search name, title, or department…" oninput="onSearchInput()" onkeydown="onSearchKeydown(event)" autocomplete="off" aria-label="Search people">
       <div class="search-hint" id="search-results"></div>
     </div>
   </div>
@@ -800,7 +802,7 @@ body {
   </div>
 </div>
 
-<div id="toasts"></div>
+<div id="toasts" role="status" aria-live="polite" aria-atomic="true"></div>
 <input type="file" id="file-in" accept=".json"  style="display:none" onchange="onFile(event)">
 <input type="file" id="img-in"  accept="image/*" style="display:none" onchange="onImageFile(event)">
 <input type="file" id="pdf-in"  accept=".pdf"    style="display:none" onchange="onPdfFile(event)">
@@ -841,6 +843,8 @@ let longPressTimer = null, longPressId = null;
 let currentPreset    = 'top-down';  // 'top-down' | 'left-right' | 'compact'
 let manualPositions  = {};           // { [nodeId]: { x, y } }
 let selectedColor    = null;         // color chosen in the add/edit modal (may not match a swatch)
+let searchMatches    = [];           // ids of nodes matching the current search query
+let searchIndex      = 0;            // index within searchMatches currently focused
 let locked           = true;
 let dragState        = null;         // { id, startPx, startPy, startClientX, startClientY, pointerId }
 
@@ -925,24 +929,40 @@ function closeSearchPanel() {
 
 function onSearchInput() {
   const q = document.getElementById('search-input').value.trim().toLowerCase();
-  const resultsEl = document.getElementById('search-results');
-  if (!q) { clearHighlight(); resultsEl.textContent = ''; return; }
+  if (!q) { searchMatches = []; searchIndex = 0; clearHighlight(); document.getElementById('search-results').textContent = ''; return; }
 
   const matches = nodes.filter(n =>
     (n.name  || '').toLowerCase().includes(q) ||
     (n.title || '').toLowerCase().includes(q) ||
     (n.dept  || '').toLowerCase().includes(q)
   );
-  const matchIds = new Set(matches.map(m => m.id));
+  searchMatches = matches.map(m => m.id);
+  searchIndex = 0;
+  applySearchHighlight();
+  if (searchMatches.length) focusOnNode(searchMatches[0]);
+}
 
+function onSearchKeydown(e) {
+  if (e.key !== 'Enter' || !searchMatches.length) return;
+  e.preventDefault();
+  const dir = e.shiftKey ? -1 : 1;
+  searchIndex = (searchIndex + dir + searchMatches.length) % searchMatches.length;
+  applySearchHighlight();
+  focusOnNode(searchMatches[searchIndex]);
+}
+
+function applySearchHighlight() {
+  const matchIds = new Set(searchMatches);
   document.querySelectorAll('.nc').forEach(c => {
     const id = c.id.slice(3);
     c.classList.toggle('nc-match', matchIds.has(id));
     c.classList.toggle('nc-dim', !matchIds.has(id));
   });
-
-  resultsEl.textContent = matches.length ? `${matches.length} match${matches.length !== 1 ? 'es' : ''}` : 'No matches';
-  if (matches.length) focusOnNode(matches[0].id);
+  const resultsEl = document.getElementById('search-results');
+  if (!searchMatches.length) { resultsEl.textContent = 'No matches'; return; }
+  resultsEl.textContent = searchMatches.length > 1
+    ? `Match ${searchIndex + 1} of ${searchMatches.length} — Enter for next`
+    : '1 match';
 }
 
 function clearHighlight() {
@@ -952,6 +972,7 @@ function clearHighlight() {
 function clearSearch() {
   const input = document.getElementById('search-input');
   if (input) input.value = '';
+  searchMatches = []; searchIndex = 0;
   const resultsEl = document.getElementById('search-results');
   if (resultsEl) resultsEl.textContent = '';
   clearHighlight();
@@ -1570,7 +1591,8 @@ function doExport() {
   if (!nodes.length) { toast('Nothing to export'); return; }
   const blob = new Blob([JSON.stringify(nodes, null, 2)], { type:'application/json' });
   const url  = URL.createObjectURL(blob);
-  const a    = Object.assign(document.createElement('a'), { href:url, download:'orgchart.json' });
+  const stamp = new Date().toISOString().slice(0, 10);
+  const a    = Object.assign(document.createElement('a'), { href:url, download:`orgchart-${stamp}.json` });
   a.click();
   URL.revokeObjectURL(url);
   toast('Chart exported');
@@ -1673,6 +1695,12 @@ function toast(msg, opts) {
 /* ─────────────────────────────────────────────────────────────
    Keyboard shortcuts
 ───────────────────────────────────────────────────────────── */
+function isOverlayOpen() {
+  return document.getElementById('modal-overlay').classList.contains('open') ||
+         document.getElementById('pdf-overlay').classList.contains('open') ||
+         document.getElementById('confirm').classList.contains('open');
+}
+
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     if (document.getElementById('pdf-overlay').classList.contains('open')) {
@@ -1682,10 +1710,11 @@ document.addEventListener('keydown', e => {
     }
   }
   if (e.key === 'Enter' && document.getElementById('modal-overlay').classList.contains('open')) saveNode();
-  if ((e.key === '+' || e.key === '=') && !e.target.matches('input,select,textarea')) zoomBy(1.15);
-  if ((e.key === '-')                  && !e.target.matches('input,select,textarea')) zoomBy(1/1.15);
-  if (e.key === '0'                    && !e.target.matches('input,select,textarea')) fitView();
-  if (e.key === '/'                    && !e.target.matches('input,select,textarea')) {
+  const typing = e.target.matches('input,select,textarea');
+  if ((e.key === '+' || e.key === '=') && !typing && !isOverlayOpen()) zoomBy(1.15);
+  if ((e.key === '-')                  && !typing && !isOverlayOpen()) zoomBy(1/1.15);
+  if (e.key === '0'                    && !typing && !isOverlayOpen()) fitView();
+  if (e.key === '/'                    && !typing && !isOverlayOpen()) {
     e.preventDefault();
     document.getElementById('search-panel').classList.add('open');
     setTimeout(() => document.getElementById('search-input').focus(), 30);
